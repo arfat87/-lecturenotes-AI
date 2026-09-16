@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Clean academic document with soundwave lines -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,26h40c2.2,0 4,1.8 4,4v48c0,2.2 -1.8,4 -4,4H34c-2.2,0 -4,-1.8 -4,-4V30c0,-2.2 1.8,-4 4,-4z" />
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M40,36h28v4H40zM40,44h20v4H40zM40,52h24v4H40z" />
+    <!-- Microphone accent badge -->
+    <path
+        android:fillColor="#818CF8"
+        android:pathData="M54,62c2.2,0 4,1.8 4,4v6c0,2.2 -1.8,4 -4,4s-4,-1.8 -4,-4v-6c0,-2.2 1.8,-4 4,-4z" />
+</vector>

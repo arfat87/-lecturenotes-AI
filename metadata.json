@@ -1,0 +1,6 @@
+{
+  "name": "LectureNotes",
+  "description": "Record lectures, transcribe audio, and automatically generate structured study notes with Gemini AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
