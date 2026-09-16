@@ -2,15 +2,16 @@
   <img width="1200" height="400" alt="LectureNotes AI Banner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" style="border-radius: 16px;" />
 
   # 🎓 LectureNotes AI
-  **Verifiable Live Lecture Audio Capture & Structured Academic Notes Synthesizer**
+  **Verifiable Live Lecture Audio Capture & Academic Note Synthesis Engine (Master Prompt v4)**
 
   [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
   [![Vite](https://img.shields.io/badge/Vite-6.1-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
   [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
   [![Android](https://img.shields.io/badge/Android-Jetpack%20Compose-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
-  [![Room](https://img.shields.io/badge/Room-Database%20v2-4285F4?logo=sqlite&logoColor=white)](https://developer.android.com/training/data-storage/room)
+  [![Room](https://img.shields.io/badge/Room-Database%20v4-4285F4?logo=sqlite&logoColor=white)](https://developer.android.com/training/data-storage/room)
   [![Gemini](https://img.shields.io/badge/Google%20Gemini-2.0%20Flash-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
+  [![Vitest](https://img.shields.io/badge/Vitest-34%20Tests%20Passing-green)](https://vitest.dev/)
 </div>
 
 ---
@@ -19,7 +20,7 @@
 
 > **"THE RECORDING OR EXTRACTED SOURCE CONTENT MUST BE THE SOURCE OF TRUTH FOR NOTE CREATION."**
 
-**LectureNotes AI** transforms real classroom audio and online academic resources (lectures, podcasts, and articles) into structured, high-yield study notes. Built upon a strict **two-stage verification pipeline**, the application guarantees that study notes are always backed by genuine spoken transcripts or verified extracted content and never fabricated from placeholder text or simulated fallbacks.
+**LectureNotes AI** transforms real classroom audio and online academic resources (lectures, podcasts, and articles) into structured, high-yield revision notes. Built upon an uncompromised **two-stage verification pipeline**, the application guarantees that study notes are always backed by genuine spoken transcripts or verified extracted content and **never fabricated from placeholder text, simulated fallbacks, or external assumptions**.
 
 Available as both a **Web Application (React + Vite + IndexedDB)** and a **Native Android Application (Kotlin + Jetpack Compose + Room Database)**.
 
@@ -30,7 +31,7 @@ flowchart TD
       A2[🌐 Academic URL / Link]
     end
 
-    A1 -->|Audio Validation| B1[Audio Storage]
+    A1 -->|Audio Pre-flight §5| B1[Audio Storage]
     B1 -->|Verbatim Speech-to-Text| C[Stage 1: Transcription / Extraction]
 
     A2 -->|SSRF Guard & Source Classifier| B2[Ingestion Path]
@@ -38,12 +39,19 @@ flowchart TD
     B2 -->|Path B: Web Article Parsing| C
 
     C --> D[Verified Candidate Transcript]
-    D -->|§7 Transcript Validation Gate| E[§8 Note-Generation Gate]
-    E --> F[Stage 2: Academic Synthesis]
-    F --> G[Structured Study Notes]
+    D -->|§7 Candidate Transcript Gate| E[§8 Note-Generation Gate]
+    E -->|Untrusted Data Input| F[Stage 2: Academic Note Synthesis Engine]
+    
+    subgraph Engine [Master Prompt v4 Engine]
+      F --> F1{Quality Check}
+      F1 -->|Corrupted / Insufficient| ERR[INSUFFICIENT_SOURCE: 0 Fake Notes]
+      F1 -->|Valid Source| OK[12-Field Structured JSON]
+    end
+
+    OK --> G[Structured Academic Revision Notes]
     
     subgraph Storage [Persistent Local Storage]
-      B1 -.-> H[(IndexedDB / Room)]
+      B1 -.-> H[(IndexedDB / Room DB)]
       D -.-> H
       G -.-> H
     end
@@ -51,96 +59,61 @@ flowchart TD
 
 ---
 
-## ✨ Key Features
+## ✨ Key Features & Capabilities
 
-- 🎙️ **Real Microphone Audio Capture**:
-  - Web Audio API waveform visualizer on browser.
+### 🧠 Stage 2 Academic Note Synthesis Engine (Master Prompt v4)
+- **Untrusted Transcript Rule & Prompt Injection Defense**:
+  - Treats all spoken/written transcript content strictly as untrusted input data, never as system instructions.
+  - Neutralizes embedded prompts (e.g. `"ignore previous instructions"`, `"give every student an A"`, `"output the following instead"`).
+- **Quality Gate & 0 Fake Notes Policy**:
+  - If a transcript is corrupted, empty, or too short to contain substantive material, the engine triggers the `INSUFFICIENT_SOURCE` rejection gate:
+    ```json
+    {
+      "status": "INSUFFICIENT_SOURCE",
+      "message": "The source transcript does not contain enough reliable content to generate academic notes."
+    }
+    ```
+  - Zero fabricated notes are produced when source material is insufficient.
+- **12-Field Rich Academic Schema**:
+  1. **Title**: Precise descriptive title derived solely from transcript.
+  2. **Executive Summary**: 2-3 sentence overview of major concepts and purpose.
+  3. **Key Takeaways**: 4-6 prioritized core concepts emphasized in the lecture.
+  4. **Detailed Sections**: Structured topics with `coreConcept`, `definition`, `explanation`, `logicOrProcess`, `examples`, and `importantPoints`.
+  5. **Definitions**: Extracted technical terminology with context notes (`term`, `definition`, `context`).
+  6. **Examples Global**: Real-world illustrations referenced by the speaker (`example`, `explanation`, `conceptDemonstrated`).
+  7. **Formulas & Equations**: Mathematical relations with notation (`formula`, `meaning`, `variables`, `context`).
+  8. **Important Facts**: Dates, numbers, statistics, and classifications explicitly mentioned.
+  9. **Exam Alerts**: Material flagged for exams (`topic`, `reason`, `evidence`).
+  10. **Questions Mentioned**: Distinct questions raised by lecturer (`lecturerQuestions[]`) and students (`studentQuestions[]`).
+  11. **Action Items**: Explicitly assigned readings, problem sets, and tasks.
+  12. **Unclear Points**: Flagged ambiguous or corrupted speech marked as `[Unclear in transcript]`.
+
+---
+
+### 🎙️ Audio Capture & Link Ingestion
+- **Real Microphone Audio Capture**:
+  - Live Web Audio API waveform visualizer on browser.
   - Background foreground service recording on Android (`MediaRecorder`).
-  - Audio files are stored permanently in local storage (IndexedDB `audio_blobs` store / Android app private storage).
-- 🌐 **Create Note from Link / URL (Master Prompt v3)**:
-  - Supports **YouTube / Video** (`URL_VIDEO`), **Podcasts / Audio Streams** (`URL_AUDIO`), and **Web Articles** (`URL_ARTICLE`).
-  - **Full SSRF Defense**: Strictly rejects private ranges (`10.*`, `172.16-31.*`, `192.168.*`), loopbacks (`127.*`, `localhost`, `::1`, `[::1]`), cloud metadata (`169.254.169.254`), and internal domains (`.local`, `.internal`, `.lan`).
-  - **HTML Boilerplate & Ad Stripping**: Cleans scripts, styles, headers, footers, navs, and boilerplate text before feeding candidate transcript.
-  - **Clickable Provenance Banner**: Notes surface provenance (e.g. *"From Video Link: youtube.com ↗"*) with direct clickable links back to original sources.
-- 🔄 **Strict 2-Stage Recording-to-Note Pipeline**:
-  - **Stage 1 (Transcription / Extraction)**: Faithful verbatim speech-to-text or clean article extraction.
-  - **Stage 2 (Synthesis)**: Academic note extraction strictly from the verified transcript into structured JSON.
-  - **Pre-flight Checklist (§5)**: Rigorous `canTranscribe` guard enforces audio existence, file size > 0, supported MIME types, valid duration, and user ownership.
-  - **Transcript Validation Gate (§7)**: Rejects empty, whitespace-only, or known placeholder fixture strings before Stage 2 can ever be constructed.
-  - **Note-Generation Gate (§8)**: Guaranteed `canGenerateNote` checkpoint requiring a persisted, non-empty `COMPLETED` transcript.
-- 🚫 **Zero Fake Fallbacks**:
-  - No synthetic sample generators in production.
-  - If a link is paywalled (401/403), unreachable (404), or empty, typed errors (`PAYWALLED`, `UNREACHABLE`, etc.) preserve failure state without hallucinating notes.
-  - Failed sources provide explicit retry actions reusing already `COMPLETED` transcripts if available.
-- 🔊 **Audio & Source Provenance**:
-  - Notes explicitly reference their `recordingId`, `transcriptId`, `sourceType`, and `sourceUrl`.
-  - Built-in audio player in Note Viewer enables instant playback of original lecture audio recordings.
-- 🧪 **Isolated Demo Fixtures**:
-  - Pre-seeded Stanford CS229 sample lectures are explicitly tagged with `isDemo: true` and strictly isolated from user recordings and link notes.
-- 🔒 **Granular Concurrency Locking (§11)**:
-  - Per-source lock (`activeJobs`) prevents duplicate processing from double-clicks, hot reloads, or navigation while allowing independent recordings and links to proceed concurrently.
-- ⚡ **Structured Study Insights**:
-  - **Executive Summaries**: High-level synthesis of lecture goals.
-  - **Topic Concept Breakdowns**: Logical grouping with clear bullet points.
-  - **Key Definitions & Context**: Technical terms explained with context notes (💡).
-  - **Exam Alerts**: Midterm and final exam callouts flagged automatically (⚡).
-- ✍️ **Interactive Note Editor with Versioning (§12, §13)**:
-  - Edit topics, points, definitions, and exam flags, with source attribution (`ai_generated` vs `user_edited`).
-  - **Reset to AI Original**: Reverts locally to stored `aiOriginalNotes` without any API calls.
-  - **Regenerate Notes**: Performs fresh AI synthesis strictly from the original `Transcript` (never from user edits), incrementing note version.
-- 🔍 **Full-Text Search & Filtering**: Real-time querying across notes, definitions, transcripts, and exam alerts (`Ctrl + K` / `Cmd + K`).
-- 📝 **Markdown Export**: One-click markdown copy formatted for Obsidian, Notion, or Bear.
+  - Audio files preserved permanently in local storage (`IndexedDB` / private app storage).
+- **Create Note from Link / URL**:
+  - Ingests **YouTube / Video** (`URL_VIDEO`), **Podcasts / Audio Streams** (`URL_AUDIO`), and **Web Articles** (`URL_ARTICLE`).
+  - **Full SSRF Defense**: Strictly rejects private IP ranges (`10.*`, `172.16-31.*`, `192.168.*`), loopback (`127.*`, `localhost`, `::1`), cloud metadata (`169.254.169.254`), and internal domains.
+  - **Clickable Provenance Banner**: Every note links back to its verified origin (`recordingId`, `transcriptId`, `sourceType`, `sourceUrl`).
 
 ---
 
-## 🚀 Quick Start (Web Application)
-
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or newer)
-- npm or pnpm / yarn
-
-### 1. Configure Environment
-Create a `.env` file in the project root:
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-VITE_GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-### 2. Install & Run
-```bash
-# Install dependencies
-npm install
-
-# Run unit & pipeline integrity tests (Vitest)
-npm test
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-```
-Open **[http://localhost:5173](http://localhost:5173)** in your browser.
-
----
-
-## 📱 Quick Start (Android Application)
-
-### Prerequisites
-- [Android Studio](https://developer.android.com/studio) (Ladybug / Meerkat or newer)
-- JDK 17 or JDK 21 (e.g. Android Studio embedded JBR)
-- Android device or emulator (API level 24+)
-
-### Steps:
-1. Open the project root in **Android Studio**.
-2. Ensure your `.env` file contains `GEMINI_API_KEY`.
-3. Allow Gradle to synchronize dependencies.
-4. Run unit and pipeline integrity tests:
-   ```powershell
-   $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-   .\gradlew.bat testDebugUnitTest
-   ```
-5. Click **Run (▶)** to install and launch on your device/emulator.
+### ✍️ Interactive Note Viewer & Editor
+- **Rich Card Visualizations**:
+  - Highlighted **Key Takeaways** banner.
+  - Interactive **Action Items Checklist**.
+  - High-contrast **Exam Alerts** callout cards.
+  - Key **Formulas Grid** with variables and application context.
+  - **Questions Mentioned** broken down by lecturer vs. student.
+- **Full Editing & Versioning**:
+  - Edit titles, summaries, key takeaways, action items, sections, and formulas.
+  - **Reset to AI Original**: Instantly restores stored `aiOriginalNotes` with 0 API calls.
+  - **Regenerate from Transcript**: Performs fresh AI synthesis strictly from the original transcript, incrementing note version.
+- **Markdown Export**: Formats all 12 rich sections for instant export to Obsidian, Notion, or Bear.
 
 ---
 
@@ -151,49 +124,45 @@ lecturenotes/
 ├── src/                          # Web Application (React 18 + TypeScript + Vite)
 │   ├── components/               # UI Components
 │   │   ├── Navbar.tsx            # Header with search & student profile
-│   │   ├── HomeScreen.tsx        # Dashboard, audio queues & course filter chips
-│   │   ├── AddLinkModal.tsx      # Modal for ingesting YouTube, podcast, or web article links
+│   │   ├── HomeScreen.tsx        # Dashboard, queues & course filters
+│   │   ├── AddLinkModal.tsx      # Link ingestion modal (Video, Audio, Article)
 │   │   ├── RecordingModal.tsx    # Live microphone capture & audio visualizer
-│   │   ├── ProcessingModal.tsx   # Truthful pipeline status & retry
-│   │   ├── NoteViewer.tsx        # Note view, audio playback, URL link banner & provenance badge
-│   │   ├── NoteEditor.tsx        # Topic, definition, exam flag editor & Reset to AI
+│   │   ├── ProcessingModal.tsx   # Truthful pipeline status & error recovery
+│   │   ├── NoteViewer.tsx        # 12-field rich view, audio player & markdown copy
+│   │   ├── NoteEditor.tsx        # Interactive rich note editor & Reset to AI
 │   │   ├── SearchModal.tsx       # Instant search across notes & transcripts (Ctrl+K)
 │   │   └── AuthModal.tsx         # User profile settings
 │   ├── fixtures/
-│   │   └── demoData.ts           # Isolated Stanford CS229 demo fixtures (isDemo: true)
+│   │   └── demoData.ts           # Stanford CS229 demo fixtures with rich schema
 │   ├── services/
 │   │   ├── __tests__/            # Automated Vitest test suite
-│   │   │   ├── linkIngestion.test.ts     # SSRF security & URL extraction test cases
-│   │   │   └── pipelineIntegrity.test.ts # Web pipeline integrity test cases
-│   │   ├── indexedDbService.ts   # Persistent binary audio & metadata storage (4 stores)
-│   │   ├── linkIngestionService.ts # SSRF defense, type classifier, article parser & web fetcher
+│   │   │   ├── linkIngestion.test.ts     # SSRF security & URL extraction tests
+│   │   │   └── pipelineIntegrity.test.ts # Prompt injection & schema integrity tests
+│   │   ├── indexedDbService.ts   # Persistent binary audio & metadata storage
+│   │   ├── linkIngestionService.ts # SSRF defense, type classifier & article parser
 │   │   ├── storageService.ts     # Unified storage coordinator
 │   │   ├── transcriptionService.ts # Stage 1: Verbatim speech-to-text
-│   │   ├── synthesisService.ts   # Stage 2: Academic note synthesis
-│   │   ├── pipelineService.ts    # Central pipeline, guards, validation gates & locks
-│   │   └── geminiService.ts      # Gemini client facade
+│   │   ├── synthesisService.ts   # Stage 2: Master Prompt v4 Synthesis Engine
+│   │   └── pipelineService.ts    # Central pipeline, guards, validation gates & locks
 │   ├── types/
-│   │   └── index.ts              # Relational models (SourceType, Recording, Transcript, Note)
+│   │   └── index.ts              # Rich 12-field models (NoteContent, Formula, ExamAlert, etc.)
 │   ├── App.tsx                   # Main state coordinator
 │   └── main.tsx                  # Web entry point
 ├── app/                          # Native Android Application (Kotlin + Compose)
 │   ├── src/main/java/com/example/
 │   │   ├── api/                  # Gemini REST client & Moshi models
 │   │   ├── data/
-│   │   │   ├── db/               # Room Database v4 (RecordingEntity, TranscriptEntity, NoteEntity, DAO)
-│   │   │   ├── fixtures/         # Isolated Android DemoFixtures (isDemo = true)
-│   │   │   ├── models/           # Relational domain models (SourceType, Recording, Transcript, Note)
-│   │   │   ├── repository/       # LectureRepository (2-stage pipeline, link ingestion, validation & job locks)
-│   │   │   └── service/          # LinkIngestionService.kt, TranscriptionService.kt & SynthesisService.kt
+│   │   │   ├── db/               # Room Database v4 (Entities & DAO)
+│   │   │   ├── fixtures/         # Rich DemoFixtures (Stanford CS229)
+│   │   │   ├── models/           # Domain models with rich schema (StructuredNotes)
+│   │   │   ├── repository/       # LectureRepository (pipeline, gates & locks)
+│   │   │   └── service/          # SynthesisService.kt (Stage 2 engine), TranscriptionService.kt
 │   │   ├── recording/            # Foreground AudioRecordingService
 │   │   ├── ui/                   # Jetpack Compose Screens & Theme
-│   │   │   └── screens/          # AddLinkDialog.kt, HomeScreen.kt, NoteViewerScreen.kt, etc.
+│   │   │   └── screens/          # NoteViewerScreen.kt (rich cards), NoteEditorScreen.kt
 │   │   └── MainActivity.kt       # Navigation graph & root lifecycle
 │   └── src/test/java/com/example/ # Unit & Robolectric Tests
-│       ├── ExampleUnitTest.kt
-│       ├── ExampleRobolectricTest.kt
-│       ├── GreetingScreenshotTest.kt
-│       └── PipelineIntegrityTest.kt # Comprehensive pipeline & link ingestion acceptance criteria tests
+│       └── PipelineIntegrityTest.kt # Acceptance tests for Master Prompt v4
 ├── build.gradle.kts              # Root build script
 └── README.md
 ```
@@ -209,40 +178,85 @@ lecturenotes/
 | **Audio Capture** | Web Audio API, MediaRecorder | Android `MediaRecorder` Service |
 | **Link Ingestion & SSRF**| WHATWG URL Parser, Regex IP Guards | OkHttp, Regex IP Guards, Pattern Matchers |
 | **Local Storage** | IndexedDB (`audio_blobs`, `recordings`, `transcripts`, `notes`) | Room SQLite Database v4 |
-| **AI Synthesis** | Google Gemini 2.0 Flash REST API | Google Gemini 2.0 Flash (Retrofit/OkHttp/Moshi) |
-| **Testing** | Vitest (30 unit tests), TypeScript Strict Mode | JUnit 4, Robolectric, Roborazzi |
+| **AI Synthesis** | Google Gemini 2.0 Flash REST API (Master Prompt v4) | Google Gemini 2.0 Flash (Retrofit/OkHttp/Moshi) |
+| **Testing** | Vitest (**34 unit tests**), TypeScript Strict Mode | JUnit 4, Robolectric, Roborazzi |
 
 ---
 
-## 🧪 Verification & Acceptance Testing
+## 🚀 Quick Start
 
-- **Web Verification**:
-  ```bash
-  # Run pipeline integrity test suite
-  npm test
-  
-  # Run TypeScript typecheck & production build
-  npm run build
-  ```
-  *(Checks 30 unit tests covering pipeline integrity, link ingestion, SSRF protection, type safety, and creates optimized Vite production bundle)*
+### 1. Web Application
 
-- **Android Verification**:
-  ```powershell
-  $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-  .\gradlew.bat testDebugUnitTest
-  ```
-  *(Executes all unit tests, Robolectric tests, and pipeline integrity tests covering §5, §7, §8, §11, §12, §13, §18)*
+```bash
+# 1. Clone & install
+git clone https://github.com/arfat87/-lecturenotes-AI.git
+cd -lecturenotes-AI
+npm install
+
+# 2. Configure .env
+cp .env.example .env
+# Set VITE_GEMINI_API_KEY=your_gemini_api_key
+
+# 3. Run test suite
+npm test
+
+# 4. Start development server
+npm run dev
+```
+
+Visit **[http://localhost:5173](http://localhost:5173)** in your browser.
+
+### 2. Android Application
+
+1. Open the project root in **Android Studio** (Ladybug / Meerkat or newer).
+2. Ensure your `.env` contains `GEMINI_API_KEY`.
+3. Run the unit test suite:
+   ```powershell
+   $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+   .\gradlew.bat testDebugUnitTest
+   ```
+4. Click **Run (▶)** to install and launch on an emulator or physical device.
+
+---
+
+## 🧪 Verification & Acceptance Criteria
+
+### Web Verification
+```bash
+npm test -- --run
+npm run build
+```
+- **Vitest**: **34 / 34 tests passed** covering:
+  - Prompt Injection Resilience (untrusted transcript defense).
+  - `INSUFFICIENT_SOURCE` Gate (zero fake notes produced on invalid audio/links).
+  - 12-field Rich Academic Schema serialization and sanitization.
+  - Multi-hour long transcript coverage.
+  - SSRF protection across loopback, private, and cloud metadata IPs.
+- **Production Build**: `tsc && vite build` transforms 1,600+ modules and generates optimized production bundles.
+
+### Android Verification
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat testDebugUnitTest
+```
+- **Robolectric & JUnit**: **BUILD SUCCESSFUL** covering:
+  - `SYSTEM_PROMPT_STAGE_2` prompt verification and untrusted input defense.
+  - Moshi serialization of all 12 rich schema fields.
+  - Backward compatibility of `displayTitle` and `allPoints`.
+  - SSRF protection in `LinkIngestionService`.
+  - Note versioning and local `aiOriginalNotes` restoration.
 
 ---
 
 ## 🔒 Security & Privacy Notice
 
-- **API Keys**: In development, keys are loaded from local `.env` files which are strictly excluded via `.gitignore`. For production web deployments, it is strongly recommended to proxy Gemini API calls through a lightweight backend service so that client browsers never hold secret API keys.
-- **Data Privacy**: Spoken lecture audio and transcripts are stored exclusively in local client storage (IndexedDB on Web, private app storage on Android). Full transcripts and API credentials are never logged to console or Logcat.
+- **API Keys**: Loaded from local `.env` files which are excluded via `.gitignore`.
+- **Zero Hallucination Guardrails**: Prompts explicitly forbid inventing facts, outside textbook knowledge, or assuming speaker intent.
+- **Local Storage**: All recordings, transcripts, and notes reside locally on user devices.
 
 ---
 
 ## 📄 License
 This project is licensed under the MIT License.
+
 
 
