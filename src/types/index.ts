@@ -42,6 +42,7 @@ export interface Recording {
   errorMessage?: string | null;
   transcriptId?: string | null;
   noteId?: string | null;
+  isDemo?: boolean;
 }
 
 export interface Transcript {
@@ -53,6 +54,9 @@ export interface Transcript {
   createdAt: number;
   status: 'PENDING' | 'VALIDATING' | 'TRANSCRIBING' | 'COMPLETED' | 'FAILED';
   errorMessage?: string | null;
+  isEdited?: boolean;
+  originalTextRef?: string | null;
+  isDemo?: boolean;
 }
 
 export interface Note {
@@ -69,6 +73,8 @@ export interface Note {
   structuredNotes: StructuredNotes;
   aiOriginalNotes: StructuredNotes;
   userEditedNotes?: StructuredNotes | null;
+  source?: 'ai_generated' | 'user_edited';
+  version?: number;
   createdAt: number;
   updatedAt: number;
   isDemo?: boolean;
@@ -87,3 +93,9 @@ export interface ProcessingJob {
   progressMessage: string;
   error?: string | null;
 }
+
+export interface ValidationCheckResult {
+  valid: boolean;
+  error?: string;
+}
+

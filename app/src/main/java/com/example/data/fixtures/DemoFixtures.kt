@@ -22,7 +22,8 @@ object DemoFixtures {
         createdAt = 1753747200000L,
         status = RecordingStatus.COMPLETED,
         transcriptId = "demo_tr_stanford_cs229",
-        noteId = "demo_note_stanford_cs229"
+        noteId = "demo_note_stanford_cs229",
+        isDemo = true
     )
 
     val DEMO_TRANSCRIPT_1 = Transcript(
@@ -32,7 +33,10 @@ object DemoFixtures {
         language = "en",
         durationSeconds = 2880,
         createdAt = 1753747200000L,
-        status = TranscriptStatus.COMPLETED
+        status = TranscriptStatus.COMPLETED,
+        isEdited = false,
+        originalTextRef = null,
+        isDemo = true
     )
 
     private val cs229Notes = StructuredNotes(
@@ -102,6 +106,8 @@ object DemoFixtures {
         structuredNotes = cs229Notes,
         aiOriginalNotes = cs229Notes,
         userEditedNotes = null,
+        source = "ai_generated",
+        version = 1,
         createdAt = 1753747200000L,
         updatedAt = 1753747200000L,
         isDemo = true

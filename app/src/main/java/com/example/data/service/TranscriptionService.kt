@@ -90,7 +90,10 @@ class TranscriptionService {
             language = "en",
             durationSeconds = recording.durationSeconds,
             createdAt = System.currentTimeMillis(),
-            status = TranscriptStatus.COMPLETED
+            status = TranscriptStatus.COMPLETED,
+            isEdited = false,
+            originalTextRef = null,
+            isDemo = recording.isDemo
         )
     }
 }

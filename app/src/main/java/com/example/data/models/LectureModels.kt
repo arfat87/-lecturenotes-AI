@@ -64,7 +64,8 @@ data class Recording(
     val status: RecordingStatus = RecordingStatus.STOPPED,
     val errorMessage: String? = null,
     val transcriptId: String? = null,
-    val noteId: String? = null
+    val noteId: String? = null,
+    val isDemo: Boolean = false
 )
 
 data class Transcript(
@@ -75,7 +76,10 @@ data class Transcript(
     val durationSeconds: Long,
     val createdAt: Long,
     val status: TranscriptStatus = TranscriptStatus.COMPLETED,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val isEdited: Boolean = false,
+    val originalTextRef: String? = null,
+    val isDemo: Boolean = false
 )
 
 data class Note(
@@ -92,6 +96,8 @@ data class Note(
     val structuredNotes: StructuredNotes,
     val aiOriginalNotes: StructuredNotes,
     val userEditedNotes: StructuredNotes? = null,
+    val source: String = "ai_generated",
+    val version: Int = 1,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val isDemo: Boolean = false

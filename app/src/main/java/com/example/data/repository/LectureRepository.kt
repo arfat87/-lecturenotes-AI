@@ -128,9 +128,103 @@ class LectureRepository(
         _isLoggedIn.value = false
     }
 
+    data class ValidationResult(val isValid: Boolean, val error: String? = null)
+
+    companion object {
+        private val KNOWN_PLACEHOLDERS = listOf(
+            "test",
+            "sample transcript",
+            "lorem ipsum",
+            "demo lecture",
+            "sample text",
+            "placeholder",
+            "test lecture",
+            "fake transcript"
+        )
+
+        fun canTranscribe(
+            recording: Recording?,
+            audioFile: File?,
+            currentUser: UserAccount? = null
+        ): ValidationResult {
+            if (recording == null) {
+                return ValidationResult(false, "Recording does not exist in local database.")
+            }
+            if (currentUser != null && recording.userId != currentUser.userId) {
+                return ValidationResult(false, "Recording does not belong to the current user.")
+            }
+            if (audioFile == null || !audioFile.exists() || audioFile.length() == 0L) {
+                return ValidationResult(false, "Audio file does not exist or has 0 bytes. Please record the lecture again.")
+            }
+            if (recording.durationSeconds <= 0L) {
+                return ValidationResult(false, "Recording duration is invalid (0 seconds).")
+            }
+            if (recording.durationSeconds > 7200L) {
+                return ValidationResult(false, "Recording duration exceeds maximum limit of 2 hours.")
+            }
+            if (recording.status == RecordingStatus.TRANSCRIBING) {
+                return ValidationResult(false, "Recording is already being transcribed.")
+            }
+            return ValidationResult(true)
+        }
+
+        fun validateTranscriptText(text: String?, isDemo: Boolean = false): ValidationResult {
+            if (text.isNullOrBlank()) {
+                return ValidationResult(false, "Transcript is empty. Lecture speech could not be recognized.")
+            }
+            val trimmed = text.trim()
+            if (!isDemo) {
+                val lower = trimmed.lowercase(Locale.ROOT)
+                val isPlaceholder = KNOWN_PLACEHOLDERS.any { ph ->
+                    lower == ph || lower == "$ph." || lower.startsWith("$ph:")
+                }
+                if (isPlaceholder) {
+                    return ValidationResult(false, "Transcript failed validation: Text appears to be placeholder or fixture data.")
+                }
+            }
+            if (trimmed.length < 5) {
+                return ValidationResult(false, "Transcript is too short to be a valid lecture recording.")
+            }
+            return ValidationResult(true)
+        }
+
+        fun canGenerateNote(
+            recording: Recording?,
+            transcript: Transcript?,
+            activeJobs: Set<String>? = null
+        ): ValidationResult {
+            if (recording == null) {
+                return ValidationResult(false, "Recording does not exist.")
+            }
+            if (activeJobs != null && activeJobs.contains(recording.id)) {
+                return ValidationResult(false, "A note generation job is already active for recording ${recording.id}.")
+            }
+            if (recording.durationSeconds <= 0L) {
+                return ValidationResult(false, "Recording duration is invalid.")
+            }
+            if (transcript == null) {
+                return ValidationResult(false, "Transcript does not exist.")
+            }
+            if (transcript.status != com.example.data.models.TranscriptStatus.COMPLETED) {
+                return ValidationResult(false, "Transcript is not COMPLETED (current status: ${transcript.status}).")
+            }
+            if (transcript.recordingId != recording.id) {
+                return ValidationResult(false, "Transcript recordingId does not match the current recording.")
+            }
+            val textCheck = validateTranscriptText(transcript.text, transcript.isDemo || recording.isDemo)
+            if (!textCheck.isValid) {
+                return textCheck
+            }
+            return ValidationResult(true)
+        }
+    }
+
+    fun isJobActive(recordingId: String): Boolean = activeJobs.contains(recordingId)
+
     /**
-     * Absolute Core Mandate Pipeline:
-     * 1. Audio validation -> 2. Transcription -> 3. Verified Transcript -> 4. Synthesis -> 5. Structured Note
+     * Absolute Core Mandate Pipeline (Master Prompt v2):
+     * 1. Audio validation (§5) -> 2. Transcription (Stage 1) -> 3. §7 Candidate Transcript Gate
+     * -> 4. Persist Transcript -> 5. §8 Note Gate -> 6. Synthesis (Stage 2) -> 7. Structured Note
      * Zero fake note fallbacks. Audio is preserved permanently in local storage on failure.
      */
     suspend fun createNoteFromRecording(
@@ -163,33 +257,82 @@ class LectureRepository(
             }
 
             val audioFile = File(recording.audioPath)
-            if (!audioFile.exists() || audioFile.length() == 0L) {
-                throw IllegalStateException("Audio file does not exist or has 0 bytes. Please record the lecture again.")
-            }
-            if (recording.durationSeconds <= 0L) {
-                throw IllegalStateException("Recording duration is invalid (0 seconds).")
+            val preflight = canTranscribe(recording, audioFile, currentUser.value)
+            if (!preflight.isValid) {
+                throw IllegalStateException(preflight.error ?: "Recording pre-flight validation failed.")
             }
 
-            // Stage 1: Transcription
-            val updatedRecTranscribing = recording.copy(status = RecordingStatus.TRANSCRIBING, errorMessage = null)
-            saveRecording(updatedRecTranscribing)
-            updateJob(ProcessingStage.TRANSCRIBING, "Transcribing spoken lecture audio to verbatim text...", null)
-
-            val transcript = transcriptionService.transcribeRecording(
-                recording = updatedRecTranscribing,
-                audioFile = audioFile,
-                onProgress = { msg -> updateJob(ProcessingStage.TRANSCRIBING, msg, null) }
-            )
-
-            if (transcript.text.isBlank()) {
-                throw IllegalStateException("Transcription failed: Speech could not be recognized from audio.")
+            // Check if a valid COMPLETED transcript already exists (§9 reuse on retry)
+            var transcript: Transcript? = null
+            if (!recording.transcriptId.isNullOrBlank()) {
+                val existingTrEntity = dao.getTranscriptById(recording.transcriptId)
+                if (existingTrEntity != null) {
+                    val existingTr = existingTrEntity.toDomainModel()
+                    if (existingTr.status == com.example.data.models.TranscriptStatus.COMPLETED &&
+                        validateTranscriptText(existingTr.text, recording.isDemo).isValid
+                    ) {
+                        transcript = existingTr
+                    }
+                }
             }
 
-            // Save Transcript in Room
-            dao.insertTranscript(TranscriptEntity.fromDomainModel(transcript))
+            // Stage 1: Transcription (if not already verified and COMPLETED)
+            if (transcript == null) {
+                val updatedRecTranscribing = recording.copy(status = RecordingStatus.TRANSCRIBING, errorMessage = null)
+                saveRecording(updatedRecTranscribing)
+                updateJob(ProcessingStage.TRANSCRIBING, "Transcribing spoken lecture audio to verbatim text...", null)
 
-            // Stage 2: Synthesis
-            val updatedRecSynthesizing = updatedRecTranscribing.copy(
+                val candidate = transcriptionService.transcribeRecording(
+                    recording = updatedRecTranscribing,
+                    audioFile = audioFile,
+                    onProgress = { msg -> updateJob(ProcessingStage.TRANSCRIBING, msg, null) }
+                )
+
+                // §7 Candidate Transcript Validation Gate
+                val textValidation = validateTranscriptText(candidate.text, recording.isDemo)
+                if (!textValidation.isValid) {
+                    val failedTranscript = candidate.copy(
+                        status = com.example.data.models.TranscriptStatus.FAILED,
+                        errorMessage = textValidation.error,
+                        isDemo = recording.isDemo
+                    )
+                    dao.insertTranscript(TranscriptEntity.fromDomainModel(failedTranscript))
+
+                    val failedRec = updatedRecTranscribing.copy(
+                        status = RecordingStatus.FAILED,
+                        transcriptId = failedTranscript.id,
+                        errorMessage = textValidation.error
+                    )
+                    saveRecording(failedRec)
+
+                    throw IllegalStateException(textValidation.error ?: "Transcription produced invalid text.")
+                }
+
+                // Persist COMPLETED Transcript BEFORE Stage 2 synthesis
+                val verifiedTranscript = candidate.copy(
+                    status = com.example.data.models.TranscriptStatus.COMPLETED,
+                    errorMessage = null,
+                    isDemo = recording.isDemo,
+                    isEdited = false,
+                    originalTextRef = null
+                )
+                dao.insertTranscript(TranscriptEntity.fromDomainModel(verifiedTranscript))
+                transcript = verifiedTranscript
+
+                val updatedRecAfterTr = updatedRecTranscribing.copy(
+                    transcriptId = verifiedTranscript.id
+                )
+                saveRecording(updatedRecAfterTr)
+            }
+
+            // §8 Note-Generation Gate Check
+            val noteGate = canGenerateNote(recording, transcript, activeJobs)
+            if (!noteGate.isValid) {
+                throw IllegalStateException(noteGate.error ?: "Note generation gate check failed.")
+            }
+
+            // Stage 2: Synthesis (strictly takes verified transcript as input)
+            val updatedRecSynthesizing = recording.copy(
                 status = RecordingStatus.SYNTHESIZING,
                 transcriptId = transcript.id
             )
@@ -223,9 +366,11 @@ class LectureRepository(
                 structuredNotes = structuredNotes,
                 aiOriginalNotes = structuredNotes,
                 userEditedNotes = null,
+                source = "ai_generated",
+                version = 1,
                 createdAt = System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis(),
-                isDemo = false
+                isDemo = recording.isDemo
             )
 
             saveNote(note)
@@ -239,10 +384,9 @@ class LectureRepository(
             updateJob(ProcessingStage.COMPLETED, "Notes ready!", null)
             return@withContext note
         } catch (e: Exception) {
-            e.printStackTrace()
             val errorMsg = e.localizedMessage ?: "Note creation pipeline failed."
 
-            // Preserve recording in FAILED status with audio intact
+            // Preserve recording in FAILED status with audio intact (§9)
             val rec = dao.getRecordingById(recordingId)?.toDomainModel()
             if (rec != null) {
                 val failedRec = rec.copy(status = RecordingStatus.FAILED, errorMessage = errorMsg)
@@ -263,24 +407,47 @@ class LectureRepository(
         return createNoteFromRecording(recordingId, onJobUpdate)
     }
 
+    /**
+     * §12 Regenerates structured notes strictly from the original verified transcript.
+     * Never sources from an edited note.
+     */
     suspend fun regenerateNote(noteId: String): Note = withContext(Dispatchers.IO) {
         val note = getNoteById(noteId) ?: throw IllegalStateException("Note $noteId not found.")
-        val recording = getRecordingById(note.recordingId) ?: throw IllegalStateException("Source recording ${note.recordingId} not found.")
-        val transcriptEntity = dao.getTranscriptById(note.transcriptId) ?: throw IllegalStateException("Source transcript ${note.transcriptId} not found.")
-        val transcript = transcriptEntity.toDomainModel()
 
-        val freshStructuredNotes = synthesisService.synthesizeNotes(recording, transcript)
+        if (activeJobs.contains(note.recordingId)) {
+            throw IllegalStateException("A processing job is already running for this note's recording.")
+        }
+        activeJobs.add(note.recordingId)
 
-        val updatedNote = note.copy(
-            title = freshStructuredNotes.title.ifBlank { note.title },
-            structuredNotes = freshStructuredNotes,
-            aiOriginalNotes = freshStructuredNotes,
-            userEditedNotes = null,
-            updatedAt = System.currentTimeMillis()
-        )
+        try {
+            val recording = getRecordingById(note.recordingId)
+                ?: throw IllegalStateException("Source recording ${note.recordingId} not found.")
+            val transcriptEntity = dao.getTranscriptById(note.transcriptId)
+                ?: throw IllegalStateException("Source transcript ${note.transcriptId} not found.")
+            val transcript = transcriptEntity.toDomainModel()
 
-        saveNote(updatedNote)
-        return@withContext updatedNote
+            val gateCheck = canGenerateNote(recording, transcript, activeJobs)
+            if (!gateCheck.isValid) {
+                throw IllegalStateException(gateCheck.error ?: "Source transcript failed validation.")
+            }
+
+            val freshStructuredNotes = synthesisService.synthesizeNotes(recording, transcript)
+
+            val updatedNote = note.copy(
+                title = freshStructuredNotes.title.ifBlank { note.title },
+                structuredNotes = freshStructuredNotes,
+                aiOriginalNotes = freshStructuredNotes,
+                userEditedNotes = null,
+                source = "ai_generated",
+                version = note.version + 1,
+                updatedAt = System.currentTimeMillis()
+            )
+
+            saveNote(updatedNote)
+            return@withContext updatedNote
+        } finally {
+            activeJobs.remove(note.recordingId)
+        }
     }
 
     suspend fun seedDemoFixturesIfEmpty() = withContext(Dispatchers.IO) {

@@ -93,8 +93,7 @@ Please synthesize structured academic notes from this transcript according to th
     });
 
     if (!response.ok) {
-      const errBody = await response.text();
-      console.error('Synthesis API error:', response.status, errBody);
+      console.error('Synthesis API error HTTP status:', response.status);
       throw new Error(`AI note synthesis failed (HTTP ${response.status}).`);
     }
 
@@ -121,7 +120,7 @@ Please synthesize structured academic notes from this transcript according to th
 
       return structuredNotes;
     } catch (parseErr) {
-      console.error('Failed to parse AI structured response:', parseErr, cleanJson);
+      console.error('Failed to parse AI structured response schema');
       throw new Error('Failed to parse structured academic notes from AI response.');
     }
   }

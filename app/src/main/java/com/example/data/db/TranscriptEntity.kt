@@ -14,7 +14,10 @@ data class TranscriptEntity(
     val durationSeconds: Long,
     val createdAt: Long,
     val status: String,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val isEdited: Boolean = false,
+    val originalTextRef: String? = null,
+    val isDemo: Boolean = false
 ) {
     fun toDomainModel(): Transcript {
         val statusEnum = try {
@@ -30,7 +33,10 @@ data class TranscriptEntity(
             durationSeconds = durationSeconds,
             createdAt = createdAt,
             status = statusEnum,
-            errorMessage = errorMessage
+            errorMessage = errorMessage,
+            isEdited = isEdited,
+            originalTextRef = originalTextRef,
+            isDemo = isDemo
         )
     }
 
@@ -44,7 +50,10 @@ data class TranscriptEntity(
                 durationSeconds = tr.durationSeconds,
                 createdAt = tr.createdAt,
                 status = tr.status.name,
-                errorMessage = tr.errorMessage
+                errorMessage = tr.errorMessage,
+                isEdited = tr.isEdited,
+                originalTextRef = tr.originalTextRef,
+                isDemo = tr.isDemo
             )
         }
     }

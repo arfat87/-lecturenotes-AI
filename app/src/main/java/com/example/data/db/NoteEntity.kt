@@ -21,6 +21,8 @@ data class NoteEntity(
     val structuredNotesJson: String,
     val aiOriginalNotesJson: String,
     val userEditedNotesJson: String? = null,
+    val source: String = "ai_generated",
+    val version: Int = 1,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val isDemo: Boolean = false
@@ -57,6 +59,8 @@ data class NoteEntity(
             structuredNotes = structured,
             aiOriginalNotes = aiOriginal,
             userEditedNotes = userEdited,
+            source = source,
+            version = version,
             createdAt = createdAt,
             updatedAt = updatedAt,
             isDemo = isDemo
@@ -84,6 +88,8 @@ data class NoteEntity(
                 structuredNotesJson = structuredJson,
                 aiOriginalNotesJson = aiOriginalJson,
                 userEditedNotesJson = userEditedJson,
+                source = note.source,
+                version = note.version,
                 createdAt = note.createdAt,
                 updatedAt = note.updatedAt,
                 isDemo = note.isDemo

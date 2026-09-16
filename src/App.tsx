@@ -128,11 +128,13 @@ export const App: React.FC = () => {
 
   const handleSaveEditedNotes = async (updatedNotes: StructuredNotes) => {
     if (!selectedNote) return;
+    const isReset = JSON.stringify(updatedNotes) === JSON.stringify(selectedNote.aiOriginalNotes);
     const updated: Note = {
       ...selectedNote,
       title: updatedNotes.title,
       structuredNotes: updatedNotes,
-      userEditedNotes: updatedNotes,
+      userEditedNotes: isReset ? null : updatedNotes,
+      source: isReset ? 'ai_generated' : 'user_edited',
       updatedAt: Date.now()
     };
     await storageService.saveNote(updated);

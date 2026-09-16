@@ -86,8 +86,7 @@ Your task:
     });
 
     if (!response.ok) {
-      const errBody = await response.text();
-      console.error('Transcription API error:', response.status, errBody);
+      console.error('Transcription API error HTTP status:', response.status);
       throw new Error(`Transcription service failed (HTTP ${response.status}). Please check network connection and API key.`);
     }
 
@@ -106,7 +105,10 @@ Your task:
       language: 'en',
       durationSeconds: recording.durationSeconds,
       createdAt: Date.now(),
-      status: 'COMPLETED'
+      status: 'COMPLETED',
+      isEdited: false,
+      originalTextRef: null,
+      isDemo: recording.isDemo || false
     };
 
     return transcript;

@@ -220,9 +220,14 @@ export const NoteViewer: React.FC<NoteViewerProps> = ({
         {/* Note Header */}
         <header className="border-b border-slate-100 pb-5 sm:pb-6">
           <div className="flex flex-wrap items-center justify-between gap-2.5 mb-2.5 sm:mb-3">
-            <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-              {note.subject}
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                {note.subject}
+              </span>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                {note.source === 'user_edited' ? `User Edited (v${note.version || 1})` : `AI Generated (v${note.version || 1})`}
+              </span>
+            </div>
 
             <div className="flex items-center space-x-2 sm:space-x-3 text-xs text-slate-500">
               <span>{note.date}</span>

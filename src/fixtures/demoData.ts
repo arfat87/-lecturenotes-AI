@@ -12,7 +12,8 @@ export const DEMO_RECORDING_1: Recording = {
   createdAt: Date.now() - 86400000 * 2,
   status: 'COMPLETED',
   transcriptId: 'demo_tr_1',
-  noteId: 'demo_note_1'
+  noteId: 'demo_note_1',
+  isDemo: true
 };
 
 export const DEMO_TRANSCRIPT_1: Transcript = {
@@ -22,7 +23,10 @@ export const DEMO_TRANSCRIPT_1: Transcript = {
   language: 'en',
   durationSeconds: 3120,
   createdAt: Date.now() - 86400000 * 2,
-  status: 'COMPLETED'
+  status: 'COMPLETED',
+  isEdited: false,
+  originalTextRef: null,
+  isDemo: true
 };
 
 export const DEMO_NOTE_1: Note = {
@@ -88,6 +92,8 @@ export const DEMO_NOTE_1: Note = {
   },
   createdAt: Date.now() - 86400000 * 2,
   updatedAt: Date.now() - 86400000 * 2,
+  source: 'ai_generated',
+  version: 1,
   isDemo: true
 };
 
@@ -103,7 +109,8 @@ export const DEMO_RECORDING_2: Recording = {
   createdAt: Date.now() - 86400000 * 4,
   status: 'COMPLETED',
   transcriptId: 'demo_tr_2',
-  noteId: 'demo_note_2'
+  noteId: 'demo_note_2',
+  isDemo: true
 };
 
 export const DEMO_TRANSCRIPT_2: Transcript = {
@@ -113,7 +120,10 @@ export const DEMO_TRANSCRIPT_2: Transcript = {
   language: 'en',
   durationSeconds: 2880,
   createdAt: Date.now() - 86400000 * 4,
-  status: 'COMPLETED'
+  status: 'COMPLETED',
+  isEdited: false,
+  originalTextRef: null,
+  isDemo: true
 };
 
 export const DEMO_NOTE_2: Note = {
@@ -171,6 +181,8 @@ export const DEMO_NOTE_2: Note = {
   },
   createdAt: Date.now() - 86400000 * 4,
   updatedAt: Date.now() - 86400000 * 4,
+  source: 'ai_generated',
+  version: 1,
   isDemo: true
 };
 

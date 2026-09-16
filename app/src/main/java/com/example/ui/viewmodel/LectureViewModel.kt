@@ -178,10 +178,12 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateSelectedNote(updatedNotes: StructuredNotes) {
         val current = _selectedNote.value ?: return
+        val isReset = updatedNotes == current.aiOriginalNotes
         val updated = current.copy(
             title = updatedNotes.title.ifBlank { current.title },
             structuredNotes = updatedNotes,
-            userEditedNotes = updatedNotes,
+            userEditedNotes = if (isReset) null else updatedNotes,
+            source = if (isReset) "ai_generated" else "user_edited",
             updatedAt = System.currentTimeMillis()
         )
         _selectedNote.value = updated
