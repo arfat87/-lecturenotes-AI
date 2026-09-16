@@ -264,7 +264,7 @@ export class PipelineService {
       }
 
       // 6. §8 Note-Generation Gate Check
-      const noteGate = canGenerateNote(recording, transcript, this.activeJobs);
+      const noteGate = canGenerateNote(recording, transcript);
       if (!noteGate.valid) {
         throw new Error(noteGate.error || 'Note generation gate check failed.');
       }
@@ -305,6 +305,7 @@ export class PipelineService {
         durationSeconds: recording.durationSeconds,
         transcriptText: transcript.text,
         structuredNotes: structuredNotes,
+        content: structuredNotes,
         aiOriginalNotes: JSON.parse(JSON.stringify(structuredNotes)),
         userEditedNotes: null,
         source: 'ai_generated',
@@ -362,7 +363,7 @@ export class PipelineService {
       if (!transcript) throw new Error('Source transcript not found.');
 
       // Validate source transcript
-      const gateCheck = canGenerateNote(recording, transcript, this.activeJobs);
+      const gateCheck = canGenerateNote(recording, transcript);
       if (!gateCheck.valid) {
         throw new Error(gateCheck.error || 'Cannot regenerate note: Source transcript failed validation.');
       }
@@ -374,6 +375,7 @@ export class PipelineService {
         ...note,
         title: freshNotes.title || note.title,
         structuredNotes: freshNotes,
+        content: freshNotes,
         aiOriginalNotes: JSON.parse(JSON.stringify(freshNotes)),
         userEditedNotes: null,
         source: 'ai_generated',
@@ -639,6 +641,7 @@ export class PipelineService {
         durationSeconds: source.durationSeconds,
         transcriptText: transcript.text,
         structuredNotes: structuredNotes,
+        content: structuredNotes,
         aiOriginalNotes: JSON.parse(JSON.stringify(structuredNotes)),
         userEditedNotes: null,
         source: 'ai_generated',

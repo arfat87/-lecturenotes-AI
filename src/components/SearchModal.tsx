@@ -29,8 +29,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         const inSummary = note.structuredNotes.summary.toLowerCase().includes(cleanQuery);
         const inTranscript = note.transcriptText?.toLowerCase().includes(cleanQuery) || false;
         const inSections = note.structuredNotes.sections.some(s =>
-          s.heading.toLowerCase().includes(cleanQuery) ||
-          s.points.some(p => p.toLowerCase().includes(cleanQuery)) ||
+          (s.title || s.heading || '').toLowerCase().includes(cleanQuery) ||
+          (s.importantPoints || s.points || []).some(p => p.toLowerCase().includes(cleanQuery)) ||
           s.definitions?.some(d => d.term.toLowerCase().includes(cleanQuery) || d.definition.toLowerCase().includes(cleanQuery) || (d.added_context?.toLowerCase().includes(cleanQuery) ?? false)) ||
           (s.exam_flag?.toLowerCase().includes(cleanQuery) ?? false)
         );

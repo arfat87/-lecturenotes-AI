@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Edit3, Trash2, Bookmark, AlertTriangle, FileText, Copy, Check, Sparkles, Clock, RefreshCw, Volume2, ShieldCheck, Database, Globe, ExternalLink, Video, Headphones } from 'lucide-react';
+import { ArrowLeft, Edit3, Trash2, Bookmark, AlertTriangle, FileText, Copy, Check, Sparkles, Clock, RefreshCw, Volume2, ShieldCheck, Database, Globe, ExternalLink, Video, Headphones, Key, Calculator, HelpCircle, CheckSquare, AlertCircle, Lightbulb } from 'lucide-react';
 import { Note, Recording } from '../types';
 import { indexedDbService } from '../services/indexedDbService';
 
@@ -67,32 +67,149 @@ export const NoteViewer: React.FC<NoteViewerProps> = ({
   };
 
   const copyAsMarkdown = () => {
-    let md = `# ${note.structuredNotes.title || note.title}\n\n`;
+    const s = note.structuredNotes;
+    let md = `# ${s.title || note.title}\n\n`;
     md += `**Subject:** ${note.subject}  \n`;
     md += `**Date:** ${note.date} | **Duration:** ${note.durationFormatted}\n\n`;
-    md += `## Executive Summary\n${note.structuredNotes.summary}\n\n`;
 
-    note.structuredNotes.sections.forEach(section => {
-      md += `## ${section.heading}\n\n`;
-      section.points.forEach(pt => {
-        md += `- ${pt}\n`;
+    if (s.summary) {
+      md += `## Executive Summary\n${s.summary}\n\n`;
+    }
+
+    if (s.keyTakeaways && s.keyTakeaways.length > 0) {
+      md += `## Key Takeaways\n`;
+      s.keyTakeaways.forEach(k => {
+        md += `- ${k}\n`;
       });
       md += '\n';
+    }
 
-      if (section.definitions?.length > 0) {
-        md += `### Key Definitions\n`;
-        section.definitions.forEach(def => {
-          md += `- **${def.term}**: ${def.definition}`;
-          if (def.added_context) md += ` *(Context: ${def.added_context})*`;
+    if (s.sections && s.sections.length > 0) {
+      md += `## Detailed Sections\n\n`;
+      s.sections.forEach(section => {
+        md += `### ${section.title || section.heading || 'Section'}\n\n`;
+        if (section.coreConcept) {
+          md += `**Core Concept:** ${section.coreConcept}\n\n`;
+        }
+        if (section.definition) {
+          md += `**Definition:** ${section.definition}\n\n`;
+        }
+        if (section.explanation) {
+          md += `**Explanation:** ${section.explanation}\n\n`;
+        }
+        if (section.logicOrProcess) {
+          md += `**Logic / Process:** ${section.logicOrProcess}\n\n`;
+        }
+        if (section.examples && section.examples.length > 0) {
+          md += `**Examples:**\n`;
+          section.examples.forEach(ex => {
+            md += `- ${ex}\n`;
+          });
           md += '\n';
-        });
-        md += '\n';
-      }
+        }
+        const pts = (section.importantPoints && section.importantPoints.length > 0)
+          ? section.importantPoints
+          : (section.points || []);
+        if (pts.length > 0) {
+          md += `**Important Points:**\n`;
+          pts.forEach(pt => {
+            md += `- ${pt}\n`;
+          });
+          md += '\n';
+        }
 
-      if (section.exam_flag) {
-        md += `> ⚡ **EXAM HIGHLIGHT:** ${section.exam_flag}\n\n`;
+        if (section.definitions && section.definitions.length > 0) {
+          md += `#### Section Definitions\n`;
+          section.definitions.forEach(def => {
+            md += `- **${def.term}**: ${def.definition}`;
+            if (def.context) md += ` *(Context: ${def.context})*`;
+            else if (def.added_context) md += ` *(Context: ${def.added_context})*`;
+            md += '\n';
+          });
+          md += '\n';
+        }
+
+        if (section.exam_flag) {
+          md += `> ⚡ **EXAM HIGHLIGHT:** ${section.exam_flag}\n\n`;
+        }
+      });
+    }
+
+    if (s.definitions && s.definitions.length > 0) {
+      md += `## Key Definitions\n`;
+      s.definitions.forEach(def => {
+        md += `- **${def.term}**: ${def.definition}`;
+        if (def.context) md += ` *(Context: ${def.context})*`;
+        else if (def.added_context) md += ` *(Context: ${def.added_context})*`;
+        md += '\n';
+      });
+      md += '\n';
+    }
+
+    if (s.formulas && s.formulas.length > 0) {
+      md += `## Formulas\n\n`;
+      s.formulas.forEach(f => {
+        md += `\`\`\`\n${f.formula}\n\`\`\`\n`;
+        if (f.meaning) md += `**Meaning:** ${f.meaning}\n\n`;
+        if (f.variables && f.variables.length > 0) {
+          md += `**Variables:**\n`;
+          f.variables.forEach(v => { md += `- ${v}\n`; });
+          md += '\n';
+        }
+        if (f.context) md += `*Context:* ${f.context}\n\n`;
+      });
+    }
+
+    if (s.importantFacts && s.importantFacts.length > 0) {
+      md += `## Important Facts & Data\n`;
+      s.importantFacts.forEach(fact => {
+        md += `- ${fact}\n`;
+      });
+      md += '\n';
+    }
+
+    if (s.examAlerts && s.examAlerts.length > 0) {
+      md += `## Exam Alerts\n\n`;
+      s.examAlerts.forEach(alert => {
+        md += `> ⚡ **${alert.topic}**\n`;
+        if (alert.reason) md += `> **Reason:** ${alert.reason}\n`;
+        if (alert.evidence) md += `> **Evidence:** "${alert.evidence}"\n`;
+        md += '\n';
+      });
+    }
+
+    if (s.questionsMentioned) {
+      const { lecturerQuestions, studentQuestions } = s.questionsMentioned;
+      if ((lecturerQuestions && lecturerQuestions.length > 0) || (studentQuestions && studentQuestions.length > 0)) {
+        md += `## Questions Mentioned\n\n`;
+        if (lecturerQuestions && lecturerQuestions.length > 0) {
+          md += `### Questions Asked by Lecturer\n`;
+          lecturerQuestions.forEach(q => { md += `- ${q}\n`; });
+          md += '\n';
+        }
+        if (studentQuestions && studentQuestions.length > 0) {
+          md += `### Questions Asked by Students\n`;
+          studentQuestions.forEach(q => { md += `- ${q}\n`; });
+          md += '\n';
+        }
       }
-    });
+    }
+
+    if (s.actionItems && s.actionItems.length > 0) {
+      md += `## Action Items & Next Steps\n`;
+      s.actionItems.forEach(item => {
+        md += `- [ ] ${item}\n`;
+      });
+      md += '\n';
+    }
+
+    if (s.unclearPoints && s.unclearPoints.length > 0) {
+      md += `## Points Needing Clarification\n`;
+      s.unclearPoints.forEach(up => {
+        md += `- ❓ ${up}\n`;
+      });
+      md += '\n';
+    }
 
     navigator.clipboard.writeText(md);
     setCopied(true);
@@ -290,17 +407,73 @@ export const NoteViewer: React.FC<NoteViewerProps> = ({
           </p>
         </section>
 
+        {/* Key Takeaways */}
+        {note.structuredNotes.keyTakeaways && note.structuredNotes.keyTakeaways.length > 0 && (
+          <section aria-label="Key Takeaways" className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4 sm:p-6 space-y-3">
+            <div className="flex items-center space-x-2 text-amber-900 font-bold text-xs sm:text-sm">
+              <Key className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              <span>Key Takeaways</span>
+            </div>
+            <ul className="space-y-2">
+              {note.structuredNotes.keyTakeaways.map((takeaway, tIdx) => (
+                <li key={tIdx} className="flex items-start text-xs sm:text-sm text-slate-800 leading-relaxed">
+                  <span className="text-amber-600 font-bold mr-2 leading-none text-base">•</span>
+                  <span>{takeaway}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {/* Sections */}
         <div className="space-y-6 sm:space-y-8">
           {note.structuredNotes.sections.map((section, idx) => (
-            <section key={idx} aria-label={section.heading} className="space-y-3.5 sm:space-y-4 pt-1 sm:pt-2">
+            <section key={idx} aria-label={section.title || section.heading} className="space-y-3.5 sm:space-y-4 pt-1 sm:pt-2">
               <h2 className="text-base sm:text-lg font-bold text-slate-900 border-l-4 border-indigo-600 pl-3">
-                {section.heading}
+                {section.title || section.heading}
               </h2>
 
-              {/* Bullet Points */}
+              {/* Core Concept Callout */}
+              {section.coreConcept && (
+                <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3 text-xs text-indigo-950 font-medium">
+                  <div className="flex items-center space-x-1.5 font-bold text-indigo-900 mb-1">
+                    <Lightbulb className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                    <span>Core Concept</span>
+                  </div>
+                  <p>{section.coreConcept}</p>
+                </div>
+              )}
+
+              {/* Explanation */}
+              {section.explanation && (
+                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
+                  {section.explanation}
+                </p>
+              )}
+
+              {/* Logic or Process */}
+              {section.logicOrProcess && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 font-mono">
+                  <span className="font-bold text-slate-900 font-sans block mb-1">⚙️ Process &amp; Logic:</span>
+                  <p>{section.logicOrProcess}</p>
+                </div>
+              )}
+
+              {/* Section Examples */}
+              {section.examples && section.examples.length > 0 && (
+                <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 text-xs text-emerald-950">
+                  <span className="font-bold text-emerald-900 block mb-1">💡 Examples:</span>
+                  <ul className="list-disc list-inside space-y-1">
+                    {section.examples.map((ex, exIdx) => (
+                      <li key={exIdx}>{ex}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Bullet Points / Important Points */}
               <ul className="space-y-2 sm:space-y-2.5 pl-1.5 sm:pl-2">
-                {section.points.map((pt, pIdx) => (
+                {((section.importantPoints && section.importantPoints.length > 0) ? section.importantPoints : (section.points || [])).map((pt, pIdx) => (
                   <li key={pIdx} className="flex items-start text-xs sm:text-sm text-slate-700 leading-relaxed">
                     <span className="text-indigo-600 font-bold mr-2.5 text-sm sm:text-base leading-none">•</span>
                     <span>{pt}</span>
@@ -323,9 +496,9 @@ export const NoteViewer: React.FC<NoteViewerProps> = ({
                       <p className="text-slate-700 leading-relaxed mb-2 font-medium">
                         {def.definition}
                       </p>
-                      {def.added_context && (
+                      {(def.context || def.added_context) && (
                         <div className="inline-flex items-center px-2.5 py-1 rounded-lg bg-white/80 border border-amber-200/60 text-amber-900/90 text-[10px] sm:text-[11px] font-medium">
-                          💡 <span className="ml-1 font-semibold">Context note:</span>&nbsp;{def.added_context}
+                          💡 <span className="ml-1 font-semibold">Context note:</span>&nbsp;{def.context || def.added_context}
                         </div>
                       )}
                     </div>
@@ -350,6 +523,180 @@ export const NoteViewer: React.FC<NoteViewerProps> = ({
             </section>
           ))}
         </div>
+
+        {/* Global Definitions */}
+        {note.structuredNotes.definitions && note.structuredNotes.definitions.length > 0 && (
+          <section aria-label="Key Definitions" className="space-y-3 pt-2">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 border-l-4 border-amber-500 pl-3">
+              Key Terminology &amp; Definitions
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {note.structuredNotes.definitions.map((def, dIdx) => (
+                <div key={dIdx} className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-3.5 sm:p-4 text-xs">
+                  <div className="flex items-center space-x-1.5 font-bold text-amber-900 mb-1">
+                    <Bookmark className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm">{def.term}</span>
+                  </div>
+                  <p className="text-slate-700 leading-relaxed mb-2 font-medium">{def.definition}</p>
+                  {(def.context || def.added_context) && (
+                    <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-white/80 border border-amber-200/60 text-amber-900 text-[11px]">
+                      💡 {def.context || def.added_context}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Formulas */}
+        {note.structuredNotes.formulas && note.structuredNotes.formulas.length > 0 && (
+          <section aria-label="Formulas" className="space-y-3 pt-2">
+            <div className="flex items-center space-x-2 text-indigo-900 font-bold text-sm sm:text-base border-l-4 border-indigo-600 pl-3">
+              <Calculator className="w-4 h-4 text-indigo-600" />
+              <span>Formulas &amp; Mathematical Notation</span>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {note.structuredNotes.formulas.map((f, fIdx) => (
+                <div key={fIdx} className="bg-indigo-50/40 border border-indigo-100 rounded-2xl p-4 text-xs space-y-2">
+                  <div className="p-3 bg-white rounded-xl border border-indigo-200 font-mono text-xs sm:text-sm text-indigo-950 font-bold overflow-x-auto">
+                    {f.formula}
+                  </div>
+                  {f.meaning && (
+                    <p className="text-slate-700"><span className="font-semibold text-slate-900">Meaning:</span> {f.meaning}</p>
+                  )}
+                  {f.variables && f.variables.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {f.variables.map((v, vIdx) => (
+                        <span key={vIdx} className="bg-indigo-100/70 text-indigo-800 text-[11px] font-mono px-2 py-0.5 rounded-md">
+                          {v}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {f.context && (
+                    <p className="text-[11px] text-slate-500 italic">Context: {f.context}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Important Facts */}
+        {note.structuredNotes.importantFacts && note.structuredNotes.importantFacts.length > 0 && (
+          <section aria-label="Important Facts" className="space-y-3 pt-2">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 border-l-4 border-slate-600 pl-3">
+              Important Facts &amp; Data
+            </h2>
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+              <ul className="space-y-2">
+                {note.structuredNotes.importantFacts.map((fact, idx) => (
+                  <li key={idx} className="flex items-start text-xs sm:text-sm text-slate-700">
+                    <span className="text-slate-500 font-bold mr-2">•</span>
+                    <span>{fact}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        )}
+
+        {/* Exam Alerts */}
+        {note.structuredNotes.examAlerts && note.structuredNotes.examAlerts.length > 0 && (
+          <section aria-label="Exam Alerts" className="space-y-3 pt-2">
+            <div className="flex items-center space-x-2 text-red-700 font-bold text-sm sm:text-base border-l-4 border-red-600 pl-3">
+              <AlertTriangle className="w-4 h-4 text-red-600" />
+              <span>Exam Alerts &amp; High-Yield Topics</span>
+            </div>
+            <div className="space-y-2.5">
+              {note.structuredNotes.examAlerts.map((alert, idx) => (
+                <div key={idx} className="bg-red-50/80 border border-red-200 rounded-2xl p-3.5 sm:p-4 text-xs space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-extrabold text-red-700 uppercase tracking-wide text-[11px]">
+                      ⚡ {alert.topic}
+                    </span>
+                  </div>
+                  {alert.reason && (
+                    <p className="text-red-950 font-medium">{alert.reason}</p>
+                  )}
+                  {alert.evidence && (
+                    <p className="text-[11px] text-red-800/90 italic bg-red-100/50 p-2 rounded-lg mt-1">
+                      "{alert.evidence}"
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Questions Mentioned */}
+        {note.structuredNotes.questionsMentioned &&
+          (((note.structuredNotes.questionsMentioned.lecturerQuestions?.length ?? 0) > 0) ||
+           ((note.structuredNotes.questionsMentioned.studentQuestions?.length ?? 0) > 0)) && (
+          <section aria-label="Questions Mentioned" className="space-y-3 pt-2">
+            <div className="flex items-center space-x-2 text-indigo-900 font-bold text-sm sm:text-base border-l-4 border-indigo-500 pl-3">
+              <HelpCircle className="w-4 h-4 text-indigo-600" />
+              <span>Questions Discussed in Lecture</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {note.structuredNotes.questionsMentioned.lecturerQuestions?.length > 0 && (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2">
+                  <span className="font-bold text-slate-800 block text-xs">Lecturer Prompts &amp; Questions:</span>
+                  <ul className="space-y-1.5 list-disc list-inside text-slate-700">
+                    {note.structuredNotes.questionsMentioned.lecturerQuestions.map((q, idx) => (
+                      <li key={idx}>{q}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {note.structuredNotes.questionsMentioned.studentQuestions?.length > 0 && (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2">
+                  <span className="font-bold text-slate-800 block text-xs">Student Questions:</span>
+                  <ul className="space-y-1.5 list-disc list-inside text-slate-700">
+                    {note.structuredNotes.questionsMentioned.studentQuestions.map((q, idx) => (
+                      <li key={idx}>{q}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Action Items */}
+        {note.structuredNotes.actionItems && note.structuredNotes.actionItems.length > 0 && (
+          <section aria-label="Action Items" className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4 sm:p-6 space-y-3">
+            <div className="flex items-center space-x-2 text-emerald-900 font-bold text-xs sm:text-sm">
+              <CheckSquare className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <span>Action Items &amp; Next Steps</span>
+            </div>
+            <ul className="space-y-2">
+              {note.structuredNotes.actionItems.map((item, idx) => (
+                <li key={idx} className="flex items-start text-xs sm:text-sm text-emerald-950 font-medium">
+                  <span className="inline-block w-4 h-4 mr-2 text-emerald-600">✓</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Unclear Points */}
+        {note.structuredNotes.unclearPoints && note.structuredNotes.unclearPoints.length > 0 && (
+          <section aria-label="Points Needing Clarification" className="bg-amber-50/50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 space-y-1.5">
+            <div className="flex items-center space-x-2 font-bold text-amber-800">
+              <AlertCircle className="w-4 h-4 text-amber-600" />
+              <span>Points Needing Clarification in Transcript</span>
+            </div>
+            <ul className="list-disc list-inside space-y-1 text-slate-700">
+              {note.structuredNotes.unclearPoints.map((up, idx) => (
+                <li key={idx}>{up}</li>
+              ))}
+            </ul>
+          </section>
+        )}
       </article>
 
       {/* Raw Transcript Modal */}

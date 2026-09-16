@@ -158,7 +158,7 @@ describe('Link Ingestion & URL Note Pipeline', () => {
       expect(note.title).toBe('Quantum Cryptography Protocols');
       expect(note.source).toBe('ai_generated');
       expect(note.version).toBe(1);
-      expect(note.structuredNotes.sections[0].definitions[0].term).toBe('No-Cloning Theorem');
+      expect(note.structuredNotes.sections[0].definitions![0].term).toBe('No-Cloning Theorem');
 
       // Verify transcript was saved and validated through §7 gate
       const transcript = await storageService.getTranscript(note.transcriptId);

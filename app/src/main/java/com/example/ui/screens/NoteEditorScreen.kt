@@ -66,18 +66,63 @@ fun NoteEditorScreen(
     var title by remember { mutableStateOf(note.structuredNotes.title) }
     var summary by remember { mutableStateOf(note.structuredNotes.summary) }
 
+    val keyTakeaways = remember {
+        mutableStateListOf<String>().apply {
+            addAll(note.structuredNotes.keyTakeaways)
+        }
+    }
+
     val sections = remember {
         mutableStateListOf<NoteSection>().apply {
             addAll(note.structuredNotes.sections)
         }
     }
 
+    val actionItems = remember {
+        mutableStateListOf<String>().apply {
+            addAll(note.structuredNotes.actionItems)
+        }
+    }
+
+    val formulas = remember {
+        mutableStateListOf<com.example.data.models.Formula>().apply {
+            addAll(note.structuredNotes.formulas)
+        }
+    }
+
+    val examAlerts = remember {
+        mutableStateListOf<com.example.data.models.ExamAlert>().apply {
+            addAll(note.structuredNotes.examAlerts)
+        }
+    }
+
     val resetToAI: () -> Unit = {
         title = note.aiOriginalNotes.title
         summary = note.aiOriginalNotes.summary
+        keyTakeaways.clear()
+        keyTakeaways.addAll(note.aiOriginalNotes.keyTakeaways)
         sections.clear()
         sections.addAll(note.aiOriginalNotes.sections)
+        actionItems.clear()
+        actionItems.addAll(note.aiOriginalNotes.actionItems)
+        formulas.clear()
+        formulas.addAll(note.aiOriginalNotes.formulas)
+        examAlerts.clear()
+        examAlerts.addAll(note.aiOriginalNotes.examAlerts)
         Unit
+    }
+
+    val saveNotes = {
+        val updated = note.structuredNotes.copy(
+            title = title,
+            summary = summary,
+            keyTakeaways = keyTakeaways.toList(),
+            sections = sections.toList(),
+            actionItems = actionItems.toList(),
+            formulas = formulas.toList(),
+            examAlerts = examAlerts.toList()
+        )
+        onSaveNotes(updated)
     }
 
     Scaffold(
@@ -94,14 +139,7 @@ fun NoteEditorScreen(
                         Icon(Icons.Default.Restore, contentDescription = "Reset to AI Original", tint = Color.Gray)
                     }
                     IconButton(
-                        onClick = {
-                            val updated = StructuredNotes(
-                                title = title,
-                                summary = summary,
-                                sections = sections.toList()
-                            )
-                            onSaveNotes(updated)
-                        },
+                        onClick = { saveNotes() },
                         modifier = Modifier.testTag("save_notes_button")
                     ) {
                         Icon(Icons.Default.Check, contentDescription = "Save Notes", tint = IndigoPrimary)
@@ -158,6 +196,45 @@ fun NoteEditorScreen(
                             maxLines = 4,
                             shape = RoundedCornerShape(12.dp)
                         )
+                    }
+                }
+            }
+
+            // Key Takeaways Editor
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Key Takeaways (${keyTakeaways.size})",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = IndigoPrimary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        keyTakeaways.forEachIndexed { tIdx, takeaway ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = takeaway,
+                                    onValueChange = { keyTakeaways[tIdx] = it },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                IconButton(onClick = { keyTakeaways.removeAt(tIdx) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Remove Takeaway", tint = Color.Gray)
+                                }
+                            }
+                        }
+                        TextButton(onClick = { keyTakeaways.add("New key takeaway point") }) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Add Takeaway")
+                        }
                     }
                 }
             }
@@ -333,17 +410,49 @@ fun NoteEditorScreen(
                 }
             }
 
+            // Action Items Editor
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Action Items (${actionItems.size})",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = IndigoPrimary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        actionItems.forEachIndexed { aIdx, itemText ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = itemText,
+                                    onValueChange = { actionItems[aIdx] = it },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                IconButton(onClick = { actionItems.removeAt(aIdx) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Remove Action Item", tint = Color.Gray)
+                                }
+                            }
+                        }
+                        TextButton(onClick = { actionItems.add("New action item or study task") }) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Add Action Item")
+                        }
+                    }
+                }
+            }
+
             // Save Changes Bottom Button
             item {
                 Button(
-                    onClick = {
-                        val updated = StructuredNotes(
-                            title = title,
-                            summary = summary,
-                            sections = sections.toList()
-                        )
-                        onSaveNotes(updated)
-                    },
+                    onClick = { saveNotes() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),

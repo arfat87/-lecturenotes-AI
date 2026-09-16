@@ -23,7 +23,8 @@ data class Content(
 @JsonClass(generateAdapter = true)
 data class GenerationConfig(
     @Json(name = "responseMimeType") val responseMimeType: String? = "application/json",
-    @Json(name = "temperature") val temperature: Float? = 0.2f
+    @Json(name = "temperature") val temperature: Float? = 0.2f,
+    @Json(name = "maxOutputTokens") val maxOutputTokens: Int? = 8192
 )
 
 @JsonClass(generateAdapter = true)

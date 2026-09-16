@@ -17,21 +17,66 @@ export type RecordingStatus = SourceStatus;
 export interface Definition {
   term: string;
   definition: string;
+  context?: string;
   added_context?: string | null;
 }
 
 export interface NoteSection {
-  heading: string;
-  points: string[];
-  definitions: Definition[];
+  title?: string;
+  coreConcept?: string;
+  definition?: string;
+  explanation?: string;
+  logicOrProcess?: string;
+  examples?: string[];
+  importantPoints?: string[];
+  // Backwards compatibility with legacy fixtures and screens
+  heading?: string;
+  points?: string[];
+  definitions?: Definition[];
   exam_flag?: string | null;
 }
 
-export interface StructuredNotes {
+export interface ExampleGlobal {
+  example: string;
+  explanation: string;
+  conceptDemonstrated: string;
+}
+
+export interface Formula {
+  formula: string;
+  meaning: string;
+  variables: string[];
+  context: string;
+}
+
+export interface ExamAlert {
+  topic: string;
+  reason: string;
+  evidence: string;
+}
+
+export interface QuestionsMentioned {
+  lecturerQuestions: string[];
+  studentQuestions: string[];
+}
+
+export interface NoteContent {
   title: string;
   summary: string;
+  keyTakeaways?: string[];
   sections: NoteSection[];
+  definitions?: Definition[];
+  examplesGlobal?: ExampleGlobal[];
+  formulas?: Formula[];
+  importantFacts?: string[];
+  examAlerts?: ExamAlert[];
+  questionsMentioned?: QuestionsMentioned;
+  actionItems?: string[];
+  unclearPoints?: string[];
 }
+
+// StructuredNotes is aliased to NoteContent for backward compatibility
+export type StructuredNotes = NoteContent;
 
 export interface Source {
   id: string;
@@ -88,6 +133,7 @@ export interface Note {
   durationSeconds: number;
   transcriptText: string;
   structuredNotes: StructuredNotes;
+  content?: NoteContent;
   aiOriginalNotes: StructuredNotes;
   userEditedNotes?: StructuredNotes | null;
   source?: 'ai_generated' | 'user_edited';

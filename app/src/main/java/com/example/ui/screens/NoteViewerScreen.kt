@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
@@ -71,6 +72,7 @@ import com.example.ui.theme.IndigoPrimary
 import com.example.ui.theme.IndigoSecondary
 import com.example.ui.theme.OnIndigoContainer
 import com.example.ui.theme.SuccessGreen
+import com.example.ui.theme.SuccessGreenContainer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -314,9 +316,60 @@ fun NoteViewerScreen(
                 }
             }
 
+            // Key Takeaways Card
+            if (note.structuredNotes.keyTakeaways.isNotEmpty()) {
+                item {
+                    KeyTakeawaysCard(takeaways = note.structuredNotes.keyTakeaways)
+                }
+            }
+
             // Sections List
             items(note.structuredNotes.sections) { section ->
                 SectionCard(section = section)
+            }
+
+            // Formulas Card
+            if (note.structuredNotes.formulas.isNotEmpty()) {
+                item {
+                    FormulasCard(formulas = note.structuredNotes.formulas)
+                }
+            }
+
+            // Exam Alerts Card
+            if (note.structuredNotes.examAlerts.isNotEmpty()) {
+                item {
+                    ExamAlertsCard(alerts = note.structuredNotes.examAlerts)
+                }
+            }
+
+            // Questions Mentioned Card
+            if (note.structuredNotes.questionsMentioned.lecturerQuestions.isNotEmpty() ||
+                note.structuredNotes.questionsMentioned.studentQuestions.isNotEmpty()
+            ) {
+                item {
+                    QuestionsMentionedCard(questions = note.structuredNotes.questionsMentioned)
+                }
+            }
+
+            // Action Items Card
+            if (note.structuredNotes.actionItems.isNotEmpty()) {
+                item {
+                    ActionItemsCard(actionItems = note.structuredNotes.actionItems)
+                }
+            }
+
+            // Important Facts Card
+            if (note.structuredNotes.importantFacts.isNotEmpty()) {
+                item {
+                    ImportantFactsCard(facts = note.structuredNotes.importantFacts)
+                }
+            }
+
+            // Unclear Points Card
+            if (note.structuredNotes.unclearPoints.isNotEmpty()) {
+                item {
+                    UnclearPointsCard(unclearPoints = note.structuredNotes.unclearPoints)
+                }
             }
 
             // Bottom Transcript Action Button
@@ -364,6 +417,49 @@ fun NoteViewerScreen(
 }
 
 @Composable
+fun KeyTakeawaysCard(takeaways: List<String>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = IndigoContainer.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = IndigoPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Key Takeaways",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = IndigoPrimary
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            takeaways.forEachIndexed { idx, takeaway ->
+                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+                    Text(
+                        text = "${idx + 1}. ",
+                        fontWeight = FontWeight.Bold,
+                        color = IndigoPrimary,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = takeaway,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        lineHeight = 20.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SectionCard(section: NoteSection) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -374,7 +470,7 @@ fun SectionCard(section: NoteSection) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Heading
             Text(
-                text = section.heading,
+                text = section.displayTitle,
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
@@ -382,27 +478,128 @@ fun SectionCard(section: NoteSection) {
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            // Core Concept
+            if (!section.coreConcept.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = IndigoContainer.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                        Text(
+                            text = "CORE CONCEPT",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = IndigoPrimary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = section.coreConcept,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            // Definition in Section
+            if (!section.definition.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = DefinitionAmberContainer.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                        Text(
+                            text = "DEFINITION",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = DefinitionAmber
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = section.definition,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            // Explanation
+            if (!section.explanation.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = section.explanation,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 22.sp
+                )
+            }
+
+            // Logic or Process
+            if (!section.logicOrProcess.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                        Text(
+                            text = "LOGIC / PROCESS",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = section.logicOrProcess,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            // Examples in Section
+            if (section.examples.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Examples:",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                section.examples.forEach { ex ->
+                    Text(
+                        text = "💬 $ex",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+            }
 
             // Bullet Points
-            section.points.forEach { point ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp)
-                ) {
-                    Text(
-                        text = "• ",
-                        fontWeight = FontWeight.Bold,
-                        color = IndigoPrimary,
-                        fontSize = 16.sp
-                    )
-                    Text(
-                        text = point,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 22.sp
-                    )
+            val points = section.allPoints
+            if (points.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                points.forEach { point ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp)
+                    ) {
+                        Text(
+                            text = "• ",
+                            fontWeight = FontWeight.Bold,
+                            color = IndigoPrimary,
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = point,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = 22.sp
+                        )
+                    }
                 }
             }
 
@@ -449,6 +646,275 @@ fun SectionCard(section: NoteSection) {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun FormulasCard(formulas: List<com.example.data.models.Formula>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Key Formulas & Equations",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = IndigoPrimary
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            formulas.forEach { formula ->
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = formula.formula,
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                            color = IndigoPrimary
+                        )
+                        if (formula.meaning.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = formula.meaning,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        if (formula.variables.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Variables: " + formula.variables.joinToString(", "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (formula.context.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Context: ${formula.context}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ExamAlertsCard(alerts: List<com.example.data.models.ExamAlert>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = ExamFlagContainer.copy(alpha = 0.7f)),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = ExamFlagRed,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "High-Yield Exam Alerts",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = ExamFlagRed
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            alerts.forEach { alert ->
+                Surface(
+                    color = Color.White.copy(alpha = 0.8f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = alert.topic,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = ExamFlagRed
+                        )
+                        if (alert.reason.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = alert.reason,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        if (alert.evidence.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Evidence: \"${alert.evidence}\"",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun QuestionsMentionedCard(questions: com.example.data.models.QuestionsMentioned) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Questions Mentioned in Lecture",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = IndigoPrimary
+            )
+            if (questions.lecturerQuestions.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Asked by Lecturer:",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                questions.lecturerQuestions.forEach { q ->
+                    Text(
+                        text = "❓ $q",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+            }
+            if (questions.studentQuestions.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Asked by Students:",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                questions.studentQuestions.forEach { q ->
+                    Text(
+                        text = "🙋 $q",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ActionItemsCard(actionItems: List<String>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = SuccessGreenContainer.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = SuccessGreen,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Action Items & Assignments",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFF065F46)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            actionItems.forEach { item ->
+                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+                    Text("☑ ", fontWeight = FontWeight.Bold, color = SuccessGreen, fontSize = 14.sp)
+                    Text(
+                        text = item,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ImportantFactsCard(facts: List<String>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Important Facts & Numbers",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = IndigoPrimary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            facts.forEach { fact ->
+                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                    Text("📌 ", fontSize = 13.sp)
+                    Text(
+                        text = fact,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UnclearPointsCard(unclearPoints: List<String>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Unclear Points in Spoken Source",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            unclearPoints.forEach { point ->
+                Text(
+                    text = "• $point",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
             }
         }
     }
@@ -502,3 +968,4 @@ fun DefinitionCalloutCard(definition: Definition) {
         }
     }
 }
+

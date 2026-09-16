@@ -330,7 +330,7 @@ class LectureRepository(
             }
 
             // §8 Note-Generation Gate Check
-            val noteGate = canGenerateNote(recording, transcript, activeJobs)
+            val noteGate = canGenerateNote(recording, transcript)
             if (!noteGate.isValid) {
                 throw IllegalStateException(noteGate.error ?: "Note generation gate check failed.")
             }
@@ -360,6 +360,9 @@ class LectureRepository(
                 id = noteId,
                 recordingId = recording.id,
                 transcriptId = transcript.id,
+                sourceId = recording.id,
+                sourceType = recording.sourceType,
+                sourceUrl = recording.sourceUrl,
                 userId = recording.userId,
                 subject = recording.subject,
                 title = if (structuredNotes.title.isNotBlank()) structuredNotes.title else recording.title,
@@ -524,9 +527,11 @@ class LectureRepository(
             saveRecording(synthesizingSource)
             updateJob(ProcessingStage.SYNTHESIZING, "Synthesizing structured study notes, definitions & key concepts...", null)
 
-            val structuredNotes = synthesisService.synthesizeNotes(synthesizingSource, transcript) { msg ->
-                updateJob(ProcessingStage.SYNTHESIZING, msg, null)
-            }
+            val structuredNotes = synthesisService.synthesizeNotes(
+                recording = synthesizingSource,
+                transcript = transcript,
+                onProgress = { msg -> updateJob(ProcessingStage.SYNTHESIZING, msg, null) }
+            )
 
             // Format date & duration
             val currentDate = SimpleDateFormat("MMM dd, yyyy", Locale.US).format(Date(synthesizingSource.createdAt))
@@ -605,7 +610,7 @@ class LectureRepository(
                 ?: throw IllegalStateException("Source transcript ${note.transcriptId} not found.")
             val transcript = transcriptEntity.toDomainModel()
 
-            val gateCheck = canGenerateNote(recording, transcript, activeJobs)
+            val gateCheck = canGenerateNote(recording, transcript)
             if (!gateCheck.isValid) {
                 throw IllegalStateException(gateCheck.error ?: "Source transcript failed validation.")
             }

@@ -6,22 +6,71 @@ import com.squareup.moshi.JsonClass
 data class Definition(
     val term: String,
     val definition: String,
+    val context: String = "",
     val added_context: String? = null
 )
 
 @JsonClass(generateAdapter = true)
 data class NoteSection(
-    val heading: String,
+    val title: String = "",
+    val coreConcept: String? = null,
+    val definition: String? = null,
+    val explanation: String? = null,
+    val logicOrProcess: String? = null,
+    val examples: List<String> = emptyList(),
+    val importantPoints: List<String> = emptyList(),
+    // Backwards compatibility with legacy fixtures and screens
+    val heading: String = "",
     val points: List<String> = emptyList(),
     val definitions: List<Definition> = emptyList(),
     val exam_flag: String? = null
+) {
+    val displayTitle: String get() = if (title.isNotBlank()) title else heading
+    val allPoints: List<String> get() = if (importantPoints.isNotEmpty()) importantPoints else points
+}
+
+@JsonClass(generateAdapter = true)
+data class ExampleGlobal(
+    val example: String = "",
+    val explanation: String = "",
+    val conceptDemonstrated: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+data class Formula(
+    val formula: String = "",
+    val meaning: String = "",
+    val variables: List<String> = emptyList(),
+    val context: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+data class ExamAlert(
+    val topic: String = "",
+    val reason: String = "",
+    val evidence: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+data class QuestionsMentioned(
+    val lecturerQuestions: List<String> = emptyList(),
+    val studentQuestions: List<String> = emptyList()
 )
 
 @JsonClass(generateAdapter = true)
 data class StructuredNotes(
-    val title: String,
-    val summary: String,
-    val sections: List<NoteSection> = emptyList()
+    val title: String = "",
+    val summary: String = "",
+    val keyTakeaways: List<String> = emptyList(),
+    val sections: List<NoteSection> = emptyList(),
+    val definitions: List<Definition> = emptyList(),
+    val examplesGlobal: List<ExampleGlobal> = emptyList(),
+    val formulas: List<Formula> = emptyList(),
+    val importantFacts: List<String> = emptyList(),
+    val examAlerts: List<ExamAlert> = emptyList(),
+    val questionsMentioned: QuestionsMentioned = QuestionsMentioned(),
+    val actionItems: List<String> = emptyList(),
+    val unclearPoints: List<String> = emptyList()
 )
 
 enum class SourceType {
@@ -118,7 +167,9 @@ data class Note(
     val sourceId: String? = null,
     val sourceType: SourceType? = null,
     val sourceUrl: String? = null
-)
+) {
+    val content: StructuredNotes get() = structuredNotes
+}
 
 data class ProcessingJob(
     val recordingId: String,
