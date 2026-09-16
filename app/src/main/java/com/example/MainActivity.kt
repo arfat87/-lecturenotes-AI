@@ -262,12 +262,13 @@ fun LectureNotesApp(viewModel: LectureViewModel) {
     if (showAddLinkDialog) {
         AddLinkDialog(
             onDismiss = { showAddLinkDialog = false },
-            onSubmit = { url, subject, customTitle ->
+            onSubmit = { url, subject, customTitle, transcriptText ->
                 showAddLinkDialog = false
                 viewModel.createNoteFromUrl(
                     url = url,
                     subject = subject,
                     customTitle = customTitle,
+                    providedTranscriptText = transcriptText.ifBlank { null },
                     onSuccess = { _ ->
                         navController.navigate(Routes.NOTE_VIEWER) {
                             popUpTo(Routes.PROCESSING) { inclusive = true }

@@ -87,7 +87,12 @@ export const App: React.FC = () => {
   };
 
   // Handler when URL/link is submitted for ingestion
-  const handleCreateNoteFromUrl = async (url: string, subject?: string, customTitle?: string) => {
+  const handleCreateNoteFromUrl = async (
+    url: string,
+    subject?: string,
+    customTitle?: string,
+    transcriptText?: string
+  ) => {
     setIsAddLinkOpen(false);
 
     setActiveJob({
@@ -101,7 +106,8 @@ export const App: React.FC = () => {
         url,
         subject,
         customTitle,
-        (job) => setActiveJob(job)
+        (job) => setActiveJob(job),
+        transcriptText
       );
 
       refreshData();

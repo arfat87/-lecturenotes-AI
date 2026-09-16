@@ -48,11 +48,12 @@ import com.example.ui.theme.SuccessGreen
 @Composable
 fun AddLinkDialog(
     onDismiss: () -> Unit,
-    onSubmit: (url: String, subject: String, title: String) -> Unit
+    onSubmit: (url: String, subject: String, title: String, transcriptText: String) -> Unit
 ) {
     var url by remember { mutableStateOf("") }
     var subject by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
+    var transcriptText by remember { mutableStateOf("") }
 
     val linkService = remember { LinkIngestionService() }
     val validation = remember(url) {
@@ -66,7 +67,7 @@ fun AddLinkDialog(
         }
     }
 
-    val isSubmitEnabled = validation != null && validation.isValid
+    val isSubmitEnabled = validation != null && validation.isValid && (detectedType != SourceType.URL_VIDEO || transcriptText.isNotBlank())
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -168,6 +169,38 @@ fun AddLinkDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                if (detectedType == SourceType.URL_VIDEO) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1F2)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(
+                                text = "YouTube Transcript Guidance:",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                color = Color(0xFFBE123C)
+                            )
+                            Text(
+                                text = "Under YouTube video, click '... More' -> 'Show transcript', then copy and paste into the box below (timestamps auto-cleaned).",
+                                fontSize = 10.sp,
+                                color = Color(0xFF881337)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = transcriptText,
+                        onValueChange = { transcriptText = it },
+                        label = { Text("Lecture Transcript *") },
+                        placeholder = { Text("Paste YouTube transcript here...") },
+                        minLines = 3,
+                        maxLines = 6,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -186,7 +219,7 @@ fun AddLinkDialog(
             Button(
                 onClick = {
                     if (isSubmitEnabled) {
-                        onSubmit(url.trim(), subject.trim(), title.trim())
+                        onSubmit(url.trim(), subject.trim(), title.trim(), transcriptText.trim())
                     }
                 },
                 enabled = isSubmitEnabled,

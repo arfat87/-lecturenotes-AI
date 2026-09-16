@@ -11,7 +11,7 @@
   [![Android](https://img.shields.io/badge/Android-Jetpack%20Compose-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
   [![Room](https://img.shields.io/badge/Room-Database%20v4-4285F4?logo=sqlite&logoColor=white)](https://developer.android.com/training/data-storage/room)
   [![Gemini](https://img.shields.io/badge/Google%20Gemini-2.0%20Flash-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
-  [![Vitest](https://img.shields.io/badge/Vitest-34%20Tests%20Passing-green)](https://vitest.dev/)
+  [![Vitest](https://img.shields.io/badge/Vitest-38%20Tests%20Passing-green)](https://vitest.dev/)
 </div>
 
 ---
@@ -97,6 +97,8 @@ flowchart TD
   - Audio files preserved permanently in local storage (`IndexedDB` / private app storage).
 - **Create Note from Link / URL**:
   - Ingests **YouTube / Video** (`URL_VIDEO`), **Podcasts / Audio Streams** (`URL_AUDIO`), and **Web Articles** (`URL_ARTICLE`).
+  - **YouTube & Video Integration**: Auto-fetches video metadata (title, channel, thumbnail) via official CORS-compliant YouTube oEmbed API. Provides clear step-by-step guidance to paste YouTube transcripts with automated timestamp stripping (`0:05`, `1:23:45`) and candidate transcript gate validation.
+  - **Dev Proxy Fallback**: Secure local dev proxy (`/api/proxy?url=...`) with strict SSRF filtering ensures browser CORS restrictions do not block public academic articles.
   - **Full SSRF Defense**: Strictly rejects private IP ranges (`10.*`, `172.16-31.*`, `192.168.*`), loopback (`127.*`, `localhost`, `::1`), cloud metadata (`169.254.169.254`), and internal domains.
   - **Clickable Provenance Banner**: Every note links back to its verified origin (`recordingId`, `transcriptId`, `sourceType`, `sourceUrl`).
 

@@ -165,6 +165,7 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
         url: String,
         subject: String = "General",
         customTitle: String? = null,
+        providedTranscriptText: String? = null,
         onSuccess: (String) -> Unit = {},
         onError: (String) -> Unit = {}
     ) {
@@ -176,7 +177,7 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
             )
 
             try {
-                val note = repository.createNoteFromUrl(url, subject, customTitle) { job ->
+                val note = repository.createNoteFromUrl(url, subject, customTitle, providedTranscriptText) { job ->
                     _activeJob.value = job
                 }
                 _selectedNote.value = note

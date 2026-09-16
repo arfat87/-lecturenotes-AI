@@ -18,6 +18,7 @@ import com.example.data.models.Transcript
 import com.example.data.models.TranscriptStatus
 import com.example.data.models.UserAccount
 import com.example.data.models.SourceType
+import com.example.data.service.IngestedContent
 import com.example.data.service.LinkIngestionService
 import com.example.data.service.SynthesisService
 import com.example.data.service.TranscriptionService
@@ -413,7 +414,7 @@ class LectureRepository(
     ): Note {
         val rec = getRecordingById(recordingId)
         if (rec != null && !rec.sourceUrl.isNullOrBlank()) {
-            return createNoteFromUrl(rec.sourceUrl, rec.subject, rec.title, onJobUpdate)
+            return createNoteFromUrl(rec.sourceUrl, rec.subject, rec.title, onJobUpdate = onJobUpdate)
         }
         return createNoteFromRecording(recordingId, onJobUpdate)
     }
@@ -428,6 +429,7 @@ class LectureRepository(
         url: String,
         subject: String = "General",
         customTitle: String? = null,
+        providedTranscriptText: String? = null,
         onJobUpdate: (ProcessingJob) -> Unit = {}
     ): Note = withContext(Dispatchers.IO) {
         val validation = linkIngestionService.validateUrl(url)
@@ -464,9 +466,23 @@ class LectureRepository(
             )
             saveRecording(source)
 
-            updateJob(ProcessingStage.VALIDATING, "Fetching and extracting content from link...", null)
-            val content = linkIngestionService.ingestUrl(url) { msg ->
-                updateJob(ProcessingStage.VALIDATING, msg, null)
+            val content = if (!providedTranscriptText.isNullOrBlank()) {
+                updateJob(ProcessingStage.VALIDATING, "Cleaning and verifying candidate lecture transcript...", null)
+                val cleaned = linkIngestionService.cleanTranscriptText(providedTranscriptText)
+                val words = cleaned.split(Regex("\\s+")).filter { it.isNotBlank() }.size
+                val estDuration = (words * 0.3).toLong().coerceAtLeast(60L)
+                IngestedContent(
+                    transcriptText = cleaned,
+                    detectedTitle = customTitle,
+                    sourceType = detectedType,
+                    sourceUrl = url,
+                    durationSeconds = estDuration
+                )
+            } else {
+                updateJob(ProcessingStage.VALIDATING, "Fetching and extracting content from link...", null)
+                linkIngestionService.ingestUrl(url) { msg ->
+                    updateJob(ProcessingStage.VALIDATING, msg, null)
+                }
             }
 
             // §7 Candidate Transcript Gate

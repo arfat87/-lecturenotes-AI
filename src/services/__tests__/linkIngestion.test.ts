@@ -192,5 +192,129 @@ describe('Link Ingestion & URL Note Pipeline', () => {
         pipelineService.createNoteFromUrl('https://example.org/empty-page')
       ).rejects.toThrow(/empty/i);
     });
+
+    it('creates note from YouTube URL with providedTranscriptText, cleaning timestamps and preserving provenance', async () => {
+      const rawYouTubeTranscript = `
+        0:00
+        welcome everyone to our lecture on artificial neural networks
+        0:05
+        today we will cover gradient descent and backpropagation
+        0:12
+        gradient descent is an optimization algorithm that minimizes the loss function
+        0:20
+        backpropagation calculates the gradient of the error with respect to each weight
+        0:30
+        learning rate is a critical hyperparameter that determines step size in optimization
+      `;
+
+      // Mock oEmbed fetch
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          title: 'Lecture 5: Backpropagation & Neural Networks',
+          author_name: 'CS Professor',
+          thumbnail_url: 'https://i.ytimg.com/vi/test/hqdefault.jpg'
+        })
+      } as unknown as Response);
+
+      // Mock synthesis
+      vi.spyOn(synthesisService, 'synthesizeNotes').mockResolvedValueOnce({
+        title: 'Lecture 5: Backpropagation & Neural Networks',
+        summary: 'Detailed explanation of artificial neural networks, gradient descent, and backpropagation.',
+        sections: [
+          {
+            heading: 'Optimization in Neural Networks',
+            points: ['Gradient descent minimizes the objective loss function.', 'Learning rate dictates the step size taken.'],
+            definitions: [
+              {
+                term: 'Gradient Descent',
+                definition: 'An optimization algorithm that iteratively minimizes the loss function.'
+              }
+            ],
+            exam_flag: 'Backpropagation derivation is a standard exam question.'
+          }
+        ]
+      });
+
+      const note = await pipelineService.createNoteFromUrl(
+        'https://www.youtube.com/watch?v=aircAruvnKk',
+        'Computer Science',
+        undefined, // test auto-fetching title from oEmbed
+        undefined,
+        rawYouTubeTranscript
+      );
+
+      expect(note).toBeDefined();
+      expect(note.sourceType).toBe('URL_VIDEO');
+      expect(note.sourceUrl).toBe('https://www.youtube.com/watch?v=aircAruvnKk');
+      expect(note.title).toBe('Lecture 5: Backpropagation & Neural Networks');
+      expect(note.source).toBe('ai_generated');
+
+      // Transcript verification
+      const transcript = await storageService.getTranscript(note.transcriptId);
+      expect(transcript).toBeDefined();
+      expect(transcript?.status).toBe('COMPLETED');
+      expect(transcript?.text).not.toContain('0:00');
+      expect(transcript?.text).not.toContain('0:05');
+      expect(transcript?.text).toContain('welcome everyone to our lecture on artificial neural networks');
+      expect(transcript?.text).toContain('gradient descent is an optimization algorithm');
+    });
+
+    it('rejects providedTranscriptText that fails the §7 candidate gate (< 5 chars or placeholder)', async () => {
+      await expect(
+        pipelineService.createNoteFromUrl(
+          'https://www.youtube.com/watch?v=aircAruvnKk',
+          'Math',
+          'Short transcript',
+          undefined,
+          'Hi'
+        )
+      ).rejects.toThrow(/too short/i);
+
+      await expect(
+        pipelineService.createNoteFromUrl(
+          'https://www.youtube.com/watch?v=aircAruvnKk',
+          'Math',
+          'Placeholder transcript',
+          undefined,
+          'sample text'
+        )
+      ).rejects.toThrow(/placeholder/i);
+    });
+  });
+
+  describe('YouTube Transcript Cleaning & Video Metadata', () => {
+    it('cleans timestamps from raw YouTube transcript copy-paste', () => {
+      const raw = `
+        0:01
+        hello students
+        0:05
+        today we discuss recursion
+        1:23:45
+        thank you for watching
+      `;
+      const cleaned = linkIngestionService.cleanTranscriptText(raw);
+      expect(cleaned).toBe('hello students today we discuss recursion thank you for watching');
+      expect(cleaned).not.toContain('0:01');
+      expect(cleaned).not.toContain('0:05');
+      expect(cleaned).not.toContain('1:23:45');
+    });
+
+    it('fetches video metadata via YouTube oEmbed', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          title: 'MIT 6.006 Intro to Algorithms',
+          author_name: 'MIT OpenCourseWare',
+          thumbnail_url: 'https://i.ytimg.com/vi/algorithms/hqdefault.jpg'
+        })
+      } as unknown as Response);
+
+      const meta = await linkIngestionService.fetchVideoMetadata('https://www.youtube.com/watch?v=NLKQG0425ic');
+      expect(meta).toBeDefined();
+      expect(meta?.title).toBe('MIT 6.006 Intro to Algorithms');
+      expect(meta?.authorName).toBe('MIT OpenCourseWare');
+      expect(meta?.providerName).toBe('YouTube');
+    });
   });
 });

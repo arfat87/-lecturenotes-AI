@@ -20,6 +20,13 @@ export interface IngestedContentResult {
   error?: string;
 }
 
+export interface VideoMetadata {
+  title?: string;
+  authorName?: string;
+  thumbnailUrl?: string;
+  providerName?: string;
+}
+
 const PRIVATE_IP_PATTERNS = [
   /^localhost$/i,
   /^127\.\d+\.\d+\.\d+$/,
@@ -137,6 +144,65 @@ export class LinkIngestionService {
   }
 
   /**
+   * Fetches video metadata via official CORS-friendly oEmbed APIs (e.g. YouTube).
+   */
+  async fetchVideoMetadata(urlString: string): Promise<VideoMetadata | null> {
+    const valid = this.validateUrl(urlString);
+    if (!valid.valid) return null;
+
+    try {
+      const parsed = new URL(urlString.trim());
+      const host = parsed.hostname.toLowerCase();
+
+      if (host.includes('youtube.com') || host.includes('youtu.be')) {
+        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(urlString.trim())}&format=json`;
+        const res = await fetch(oembedUrl);
+        if (res.ok) {
+          const data = await res.json();
+          return {
+            title: data.title,
+            authorName: data.author_name,
+            thumbnailUrl: data.thumbnail_url,
+            providerName: 'YouTube'
+          };
+        }
+      }
+    } catch {
+      // Non-blocking fallback
+    }
+    return null;
+  }
+
+  /**
+   * Cleans raw pasted transcript text, especially YouTube transcripts with line-by-line timestamps.
+   * Strips timestamp markers (e.g., "0:05", "1:23:45", "[00:12]", "(1:30)") while preserving speech text.
+   */
+  cleanTranscriptText(rawText: string): string {
+    if (!rawText) return '';
+
+    const lines = rawText.split(/\r?\n/);
+    const cleanedLines: string[] = [];
+
+    for (let line of lines) {
+      // Remove leading/standalone timestamp patterns:
+      // "0:00", "01:23", "1:23:45", "[01:23]", "(01:23)"
+      line = line.replace(/^\s*\[?\(?\d{1,2}:\d{2}(?::\d{2})?\)?\]?\s*/, '');
+      // Also remove inline timestamps like " 0:15 "
+      line = line.replace(/\s+\[?\(?\d{1,2}:\d{2}(?::\d{2})?\)?\]?\s+/g, ' ');
+
+      const trimmed = line.trim();
+      // Skip lines that were only timestamps and are now empty
+      if (trimmed.length > 0) {
+        cleanedLines.push(trimmed);
+      }
+    }
+
+    return cleanedLines.join(' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  /**
    * Ingests a URL according to Path A (Audio/Video) or Path B (Web Article).
    * Strictly outputs verbatim text candidate or raw audio; NEVER creates notes or summaries.
    */
@@ -249,10 +315,10 @@ export class LinkIngestionService {
       }
 
       // If YouTube or video platform restricts direct browser-side HTML extraction,
-      // provide a clean typed failure or instructions for video transcripts
+      // provide a clean typed failure with instructions for video transcripts
       throw new Error(
-        `Direct client-side extraction for ${detection.platform} video is restricted by CORS/platform policies. ` +
-        `Please provide a direct audio/podcast URL, an article link, or transcribe using the microphone.`
+        `Direct caption extraction for ${detection.platform} is restricted by platform CORS and security policies. ` +
+        `Please paste the video transcript or captions directly into the "Lecture Transcript / Captions" box when creating the note.`
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to retrieve video lecture transcript.';
@@ -313,6 +379,8 @@ export class LinkIngestionService {
     if (onProgress) onProgress(`Fetching article page from ${detection.hostname}...`);
 
     let html = '';
+    let lastError: Error | null = null;
+
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -332,8 +400,40 @@ export class LinkIngestionService {
 
       html = await response.text();
     } catch (fetchErr: unknown) {
-      const msg = fetchErr instanceof Error ? fetchErr.message : 'Network error fetching article link.';
-      throw new Error(msg);
+      lastError = fetchErr instanceof Error ? fetchErr : new Error(String(fetchErr));
+
+      // If running in browser and direct fetch failed (likely CORS), attempt dev proxy fallback
+      if (
+        typeof window !== 'undefined' &&
+        !lastError.message.startsWith('PAYWALLED') &&
+        !lastError.message.startsWith('UNSUPPORTED_TYPE')
+      ) {
+        try {
+          if (onProgress) onProgress(`Retrying article fetch via secure proxy...`);
+          const proxyRes = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
+          if (proxyRes.ok) {
+            const contentType = proxyRes.headers.get('content-type') || '';
+            if (contentType.includes('text/html') || contentType.includes('text/plain') || !contentType) {
+              html = await proxyRes.text();
+              lastError = null;
+            } else {
+              lastError = new Error(`UNSUPPORTED_TYPE: URL did not return HTML or text content (Content-Type: ${contentType}).`);
+            }
+          } else {
+            if (proxyRes.status === 401 || proxyRes.status === 403) {
+              lastError = new Error(`PAYWALLED: This article requires login or subscription (HTTP ${proxyRes.status}).`);
+            } else if (proxyRes.status === 404) {
+              lastError = new Error('UNREACHABLE: Article page was not found (HTTP 404).');
+            }
+          }
+        } catch {
+          // Keep original error
+        }
+      }
+    }
+
+    if (lastError || !html) {
+      throw lastError || new Error('Network error fetching article link.');
     }
 
     if (onProgress) onProgress('Extracting readable lecture content and stripping boilerplate...');

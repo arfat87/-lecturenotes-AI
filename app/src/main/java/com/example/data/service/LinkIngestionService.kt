@@ -222,4 +222,26 @@ class LinkIngestionService(
 
         return Pair(title, normalized)
     }
+
+    /**
+     * Cleans raw pasted transcript text, stripping YouTube timestamp markers.
+     */
+    fun cleanTranscriptText(rawText: String): String {
+        if (rawText.isBlank()) return ""
+        val lines = rawText.lines()
+        val cleanedLines = mutableListOf<String>()
+
+        for (rawLine in lines) {
+            var line = rawLine.replace(Regex("^\\s*\\[?\\(?\\d{1,2}:\\d{2}(?::\\d{2})?\\)?\\]?\\s*"), "")
+            line = line.replace(Regex("\\s+\\[?\\(?\\d{1,2}:\\d{2}(?::\\d{2})?\\)?\\]?\\s+"), " ")
+            val trimmed = line.trim()
+            if (trimmed.isNotBlank()) {
+                cleanedLines.add(trimmed)
+            }
+        }
+
+        return cleanedLines.joinToString(" ")
+            .replace(Regex("\\s{2,}"), " ")
+            .trim()
+    }
 }

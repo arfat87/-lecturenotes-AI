@@ -411,7 +411,8 @@ export class PipelineService {
     url: string,
     subject?: string,
     customTitle?: string,
-    onJobUpdate?: (job: ProcessingJob) => void
+    onJobUpdate?: (job: ProcessingJob) => void,
+    providedTranscriptText?: string
   ): Promise<Note> {
     // Validate URL syntax and SSRF protection upfront
     const urlValidation = linkIngestionService.validateUrl(url);
@@ -439,12 +440,22 @@ export class PipelineService {
       const detectedType = detection.sourceType;
       const defaultTitle = detectedType === 'URL_ARTICLE' ? 'Web Article' : 'Online Lecture';
 
+      let resolvedTitle = customTitle?.trim() || defaultTitle;
+
+      // If title is missing or default, try fetching real video metadata via oEmbed
+      if ((!customTitle || customTitle.trim() === '') && detectedType === 'URL_VIDEO') {
+        const meta = await linkIngestionService.fetchVideoMetadata(url);
+        if (meta?.title) {
+          resolvedTitle = meta.title;
+        }
+      }
+
       const source: Source = {
         id: sourceId,
         sourceType: detectedType,
         sourceUrl: url,
         userId: storageService.getUser()?.userId || 'usr_101',
-        title: customTitle?.trim() || defaultTitle,
+        title: resolvedTitle,
         subject: subject?.trim() || 'General',
         durationSeconds: 0,
         createdAt: Date.now(),
@@ -454,90 +465,15 @@ export class PipelineService {
 
       await storageService.saveRecording(source);
 
-      // Ingest URL (Path A or Path B)
-      updateJob('VALIDATING', 'Fetching and extracting content from link...');
-      const ingestResult = await linkIngestionService.ingestUrl(url);
-
-      if (!ingestResult.success) {
-        source.status = 'FAILED';
-        source.errorMessage = ingestResult.error || 'Failed to ingest URL.';
-        await storageService.saveRecording(source);
-        updateJob('FAILED', 'Failed to extract content from link.', source.errorMessage);
-        throw new Error(source.errorMessage);
-      }
-
-      if (ingestResult.title && (!customTitle || customTitle.trim() === '')) {
-        source.title = ingestResult.title;
-      }
-      if (ingestResult.durationSeconds && ingestResult.durationSeconds > 0) {
-        source.durationSeconds = ingestResult.durationSeconds;
-      }
-
       let transcript: Transcript | null = null;
 
-      // Handle Path A with extracted audio track
-      if (ingestResult.audioBlob) {
-        const audioBlob = ingestResult.audioBlob;
-        source.audioBlob = audioBlob;
-        source.audioMimeType = audioBlob.type || 'audio/webm';
-        source.status = 'TRANSCRIBING';
-        if (source.durationSeconds <= 0) {
-          source.durationSeconds = 60;
-        }
-        await storageService.saveRecording(source, audioBlob);
+      if (providedTranscriptText && providedTranscriptText.trim().length > 0) {
+        // User provided the verified transcript (e.g. copied from YouTube transcript / captions)
+        updateJob('VALIDATING', 'Cleaning and verifying candidate lecture transcript...');
+        const cleanedText = linkIngestionService.cleanTranscriptText(providedTranscriptText);
 
-        updateJob('TRANSCRIBING', 'Transcribing extracted audio track...');
-        const candidate = await transcriptionService.transcribeRecording(
-          source,
-          audioBlob,
-          (msg) => updateJob('TRANSCRIBING', msg)
-        );
-
-        const validation = validateTranscriptText(candidate?.text, false);
-        if (!validation.valid) {
-          const failedTranscript: Transcript = {
-            id: candidate?.id || `tr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-            recordingId: source.id,
-            sourceId: source.id,
-            sourceType: source.sourceType,
-            sourceUrl: source.sourceUrl,
-            text: candidate?.text || '',
-            language: 'en',
-            durationSeconds: source.durationSeconds,
-            createdAt: Date.now(),
-            status: 'FAILED',
-            errorMessage: validation.error,
-            isEdited: false,
-            originalTextRef: null,
-            isDemo: false
-          };
-          await storageService.saveTranscript(failedTranscript);
-
-          source.status = 'FAILED';
-          source.transcriptId = failedTranscript.id;
-          source.errorMessage = validation.error;
-          await storageService.saveRecording(source, audioBlob);
-          throw new Error(validation.error);
-        }
-
-        transcript = {
-          ...candidate,
-          status: 'COMPLETED',
-          recordingId: source.id,
-          sourceId: source.id,
-          sourceType: source.sourceType,
-          sourceUrl: source.sourceUrl,
-          isDemo: false,
-          isEdited: false,
-          originalTextRef: null
-        };
-        await storageService.saveTranscript(transcript);
-        source.transcriptId = transcript.id;
-        await storageService.saveRecording(source, audioBlob);
-      } else if (ingestResult.transcriptText) {
-        // Path A with official captions OR Path B with extracted article text
-        const text = ingestResult.transcriptText.trim();
-        const validation = validateTranscriptText(text, false);
+        // §7 Candidate Transcript Gate
+        const validation = validateTranscriptText(cleanedText, false);
         if (!validation.valid) {
           const failedTranscript: Transcript = {
             id: `tr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -545,9 +481,9 @@ export class PipelineService {
             sourceId: source.id,
             sourceType: source.sourceType,
             sourceUrl: source.sourceUrl,
-            text,
+            text: cleanedText,
             language: 'en',
-            durationSeconds: source.durationSeconds,
+            durationSeconds: source.durationSeconds || 60,
             createdAt: Date.now(),
             status: 'FAILED',
             errorMessage: validation.error,
@@ -561,14 +497,12 @@ export class PipelineService {
           source.transcriptId = failedTranscript.id;
           source.errorMessage = validation.error;
           await storageService.saveRecording(source);
+          updateJob('FAILED', 'Candidate transcript failed validation.', source.errorMessage);
           throw new Error(validation.error);
         }
 
-        // Estimate duration if missing (approx 200 words/min = ~0.3 sec/word)
-        if (source.durationSeconds <= 0) {
-          const words = text.split(/\s+/).filter(Boolean).length;
-          source.durationSeconds = Math.max(60, Math.round(words * 0.3));
-        }
+        const words = cleanedText.split(/\s+/).filter(Boolean).length;
+        source.durationSeconds = Math.max(60, Math.round(words * 0.3));
 
         transcript = {
           id: `tr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -576,7 +510,7 @@ export class PipelineService {
           sourceId: source.id,
           sourceType: source.sourceType,
           sourceUrl: source.sourceUrl,
-          text,
+          text: cleanedText,
           language: 'en',
           durationSeconds: source.durationSeconds,
           createdAt: Date.now(),
@@ -589,7 +523,141 @@ export class PipelineService {
         source.transcriptId = transcript.id;
         await storageService.saveRecording(source);
       } else {
-        throw new Error('No transcript or audio content could be extracted from link.');
+        // Ingest URL (Path A or Path B)
+        updateJob('VALIDATING', 'Fetching and extracting content from link...');
+        const ingestResult = await linkIngestionService.ingestUrl(url);
+
+        if (!ingestResult.success) {
+          source.status = 'FAILED';
+          source.errorMessage = ingestResult.error || 'Failed to ingest URL.';
+          await storageService.saveRecording(source);
+          updateJob('FAILED', 'Failed to extract content from link.', source.errorMessage);
+          throw new Error(source.errorMessage);
+        }
+
+        if (ingestResult.title && (!customTitle || customTitle.trim() === '')) {
+          source.title = ingestResult.title;
+        }
+        if (ingestResult.durationSeconds && ingestResult.durationSeconds > 0) {
+          source.durationSeconds = ingestResult.durationSeconds;
+        }
+
+        // Handle Path A with extracted audio track
+        if (ingestResult.audioBlob) {
+          const audioBlob = ingestResult.audioBlob;
+          source.audioBlob = audioBlob;
+          source.audioMimeType = audioBlob.type || 'audio/webm';
+          source.status = 'TRANSCRIBING';
+          if (source.durationSeconds <= 0) {
+            source.durationSeconds = 60;
+          }
+          await storageService.saveRecording(source, audioBlob);
+
+          updateJob('TRANSCRIBING', 'Transcribing extracted audio track...');
+          const candidate = await transcriptionService.transcribeRecording(
+            source,
+            audioBlob,
+            (msg) => updateJob('TRANSCRIBING', msg)
+          );
+
+          const validation = validateTranscriptText(candidate?.text, false);
+          if (!validation.valid) {
+            const failedTranscript: Transcript = {
+              id: candidate?.id || `tr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+              recordingId: source.id,
+              sourceId: source.id,
+              sourceType: source.sourceType,
+              sourceUrl: source.sourceUrl,
+              text: candidate?.text || '',
+              language: 'en',
+              durationSeconds: source.durationSeconds,
+              createdAt: Date.now(),
+              status: 'FAILED',
+              errorMessage: validation.error,
+              isEdited: false,
+              originalTextRef: null,
+              isDemo: false
+            };
+            await storageService.saveTranscript(failedTranscript);
+
+            source.status = 'FAILED';
+            source.transcriptId = failedTranscript.id;
+            source.errorMessage = validation.error;
+            await storageService.saveRecording(source, audioBlob);
+            throw new Error(validation.error);
+          }
+
+          transcript = {
+            ...candidate,
+            status: 'COMPLETED',
+            recordingId: source.id,
+            sourceId: source.id,
+            sourceType: source.sourceType,
+            sourceUrl: source.sourceUrl,
+            isDemo: false,
+            isEdited: false,
+            originalTextRef: null
+          };
+          await storageService.saveTranscript(transcript);
+          source.transcriptId = transcript.id;
+          await storageService.saveRecording(source, audioBlob);
+        } else if (ingestResult.transcriptText) {
+          // Path A with official captions OR Path B with extracted article text
+          const text = ingestResult.transcriptText.trim();
+          const validation = validateTranscriptText(text, false);
+          if (!validation.valid) {
+            const failedTranscript: Transcript = {
+              id: `tr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+              recordingId: source.id,
+              sourceId: source.id,
+              sourceType: source.sourceType,
+              sourceUrl: source.sourceUrl,
+              text,
+              language: 'en',
+              durationSeconds: source.durationSeconds,
+              createdAt: Date.now(),
+              status: 'FAILED',
+              errorMessage: validation.error,
+              isEdited: false,
+              originalTextRef: null,
+              isDemo: false
+            };
+            await storageService.saveTranscript(failedTranscript);
+
+            source.status = 'FAILED';
+            source.transcriptId = failedTranscript.id;
+            source.errorMessage = validation.error;
+            await storageService.saveRecording(source);
+            throw new Error(validation.error);
+          }
+
+          // Estimate duration if missing (approx 200 words/min = ~0.3 sec/word)
+          if (source.durationSeconds <= 0) {
+            const words = text.split(/\s+/).filter(Boolean).length;
+            source.durationSeconds = Math.max(60, Math.round(words * 0.3));
+          }
+
+          transcript = {
+            id: `tr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            recordingId: source.id,
+            sourceId: source.id,
+            sourceType: source.sourceType,
+            sourceUrl: source.sourceUrl,
+            text,
+            language: 'en',
+            durationSeconds: source.durationSeconds,
+            createdAt: Date.now(),
+            status: 'COMPLETED',
+            isEdited: false,
+            originalTextRef: null,
+            isDemo: false
+          };
+          await storageService.saveTranscript(transcript);
+          source.transcriptId = transcript.id;
+          await storageService.saveRecording(source);
+        } else {
+          throw new Error('No transcript or audio content could be extracted from link.');
+        }
       }
 
       if (!transcript) {
