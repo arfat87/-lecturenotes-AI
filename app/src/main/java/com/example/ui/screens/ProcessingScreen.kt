@@ -110,7 +110,7 @@ fun ProcessingScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = if (isFailed) "Note Generation Failed" else "Processing Lecture Recording",
+                text = if (isFailed) "Note Generation Failed" else "Processing Lecture Content",
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -153,8 +153,8 @@ fun ProcessingScreen(
                     Column(modifier = Modifier.padding(20.dp)) {
                         StepItem(
                             stepNumber = 1,
-                            title = "Validating Audio File",
-                            subtitle = "Ensuring non-empty microphone data",
+                            title = "Validating Source Data",
+                            subtitle = "Checking source audio or link contents",
                             icon = Icons.Default.CloudUpload,
                             isCurrent = activeStep == 1,
                             isComplete = activeStep > 1
@@ -164,8 +164,8 @@ fun ProcessingScreen(
 
                         StepItem(
                             stepNumber = 2,
-                            title = "Gemini Audio Transcription",
-                            subtitle = "Converting speech-to-text verbatim",
+                            title = "Transcription & Ingestion",
+                            subtitle = "Converting speech or extracting source content",
                             icon = Icons.Default.RecordVoiceOver,
                             isCurrent = activeStep == 2,
                             isComplete = activeStep > 2

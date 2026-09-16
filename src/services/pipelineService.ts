@@ -1,7 +1,8 @@
-import type { Note, ProcessingJob, Recording, Transcript, UserAccount, ValidationCheckResult } from '../types';
+import type { Note, ProcessingJob, Recording, Source, Transcript, UserAccount, ValidationCheckResult } from '../types';
 import { storageService } from './storageService';
 import { transcriptionService } from './transcriptionService';
 import { synthesisService } from './synthesisService';
+import { linkIngestionService } from './linkIngestionService';
 
 const SUPPORTED_AUDIO_MIMES = [
   'audio/webm',
@@ -388,10 +389,286 @@ export class PipelineService {
   }
 
   /**
-   * Retries note creation for a failed recording using its original saved audio (§9).
+   * Retries note creation for a failed recording using its original saved audio or URL source (§9).
    */
-  async retryProcessing(recordingId: string, onJobUpdate?: (job: ProcessingJob) => void): Promise<Note> {
-    return this.createNoteFromRecording(recordingId, onJobUpdate);
+  async retryProcessing(sourceId: string, onJobUpdate?: (job: ProcessingJob) => void): Promise<Note> {
+    const src = await storageService.getRecording(sourceId);
+    if (src && src.sourceUrl) {
+      return this.createNoteFromUrl(src.sourceUrl, src.subject, src.title, onJobUpdate);
+    }
+    return this.createNoteFromRecording(sourceId, onJobUpdate);
+  }
+
+  /**
+   * Pipeline for creating a note from a URL/link (YouTube, Podcast, Article/Webpage).
+   * Path A: Video/Audio Link -> Extract Captions or Audio -> Transcribe if needed -> Verified Transcript -> Stage 2 Synthesis
+   * Path B: Article Link -> Fetch & Extract Article Text -> Verified Transcript -> Stage 2 Synthesis
+   * Follows the exact same §7 transcript validation gate and §8 note generation gate.
+   */
+  async createNoteFromUrl(
+    url: string,
+    subject?: string,
+    customTitle?: string,
+    onJobUpdate?: (job: ProcessingJob) => void
+  ): Promise<Note> {
+    // Validate URL syntax and SSRF protection upfront
+    const urlValidation = linkIngestionService.validateUrl(url);
+    if (!urlValidation.valid) {
+      throw new Error(urlValidation.error || 'Invalid or prohibited URL.');
+    }
+
+    const sourceId = `src_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    if (this.activeJobs.has(sourceId)) {
+      throw new Error(`A processing job is already in progress for source: ${sourceId}`);
+    }
+    this.activeJobs.add(sourceId);
+
+    const updateJob = (stage: ProcessingJob['stage'], progressMessage: string, error?: string | null) => {
+      if (onJobUpdate) {
+        onJobUpdate({ recordingId: sourceId, stage, progressMessage, error });
+      }
+    };
+
+    try {
+      updateJob('VALIDATING', 'Analyzing link and verifying safety...');
+
+      const detection = linkIngestionService.detectSourceType(url);
+      const detectedType = detection.sourceType;
+      const defaultTitle = detectedType === 'URL_ARTICLE' ? 'Web Article' : 'Online Lecture';
+
+      const source: Source = {
+        id: sourceId,
+        sourceType: detectedType,
+        sourceUrl: url,
+        userId: storageService.getUser()?.userId || 'usr_101',
+        title: customTitle?.trim() || defaultTitle,
+        subject: subject?.trim() || 'General',
+        durationSeconds: 0,
+        createdAt: Date.now(),
+        status: 'FETCHING',
+        isDemo: false
+      };
+
+      await storageService.saveRecording(source);
+
+      // Ingest URL (Path A or Path B)
+      updateJob('VALIDATING', 'Fetching and extracting content from link...');
+      const ingestResult = await linkIngestionService.ingestUrl(url);
+
+      if (!ingestResult.success) {
+        source.status = 'FAILED';
+        source.errorMessage = ingestResult.error || 'Failed to ingest URL.';
+        await storageService.saveRecording(source);
+        updateJob('FAILED', 'Failed to extract content from link.', source.errorMessage);
+        throw new Error(source.errorMessage);
+      }
+
+      if (ingestResult.title && (!customTitle || customTitle.trim() === '')) {
+        source.title = ingestResult.title;
+      }
+      if (ingestResult.durationSeconds && ingestResult.durationSeconds > 0) {
+        source.durationSeconds = ingestResult.durationSeconds;
+      }
+
+      let transcript: Transcript | null = null;
+
+      // Handle Path A with extracted audio track
+      if (ingestResult.audioBlob) {
+        const audioBlob = ingestResult.audioBlob;
+        source.audioBlob = audioBlob;
+        source.audioMimeType = audioBlob.type || 'audio/webm';
+        source.status = 'TRANSCRIBING';
+        if (source.durationSeconds <= 0) {
+          source.durationSeconds = 60;
+        }
+        await storageService.saveRecording(source, audioBlob);
+
+        updateJob('TRANSCRIBING', 'Transcribing extracted audio track...');
+        const candidate = await transcriptionService.transcribeRecording(
+          source,
+          audioBlob,
+          (msg) => updateJob('TRANSCRIBING', msg)
+        );
+
+        const validation = validateTranscriptText(candidate?.text, false);
+        if (!validation.valid) {
+          const failedTranscript: Transcript = {
+            id: candidate?.id || `tr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            recordingId: source.id,
+            sourceId: source.id,
+            sourceType: source.sourceType,
+            sourceUrl: source.sourceUrl,
+            text: candidate?.text || '',
+            language: 'en',
+            durationSeconds: source.durationSeconds,
+            createdAt: Date.now(),
+            status: 'FAILED',
+            errorMessage: validation.error,
+            isEdited: false,
+            originalTextRef: null,
+            isDemo: false
+          };
+          await storageService.saveTranscript(failedTranscript);
+
+          source.status = 'FAILED';
+          source.transcriptId = failedTranscript.id;
+          source.errorMessage = validation.error;
+          await storageService.saveRecording(source, audioBlob);
+          throw new Error(validation.error);
+        }
+
+        transcript = {
+          ...candidate,
+          status: 'COMPLETED',
+          recordingId: source.id,
+          sourceId: source.id,
+          sourceType: source.sourceType,
+          sourceUrl: source.sourceUrl,
+          isDemo: false,
+          isEdited: false,
+          originalTextRef: null
+        };
+        await storageService.saveTranscript(transcript);
+        source.transcriptId = transcript.id;
+        await storageService.saveRecording(source, audioBlob);
+      } else if (ingestResult.transcriptText) {
+        // Path A with official captions OR Path B with extracted article text
+        const text = ingestResult.transcriptText.trim();
+        const validation = validateTranscriptText(text, false);
+        if (!validation.valid) {
+          const failedTranscript: Transcript = {
+            id: `tr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            recordingId: source.id,
+            sourceId: source.id,
+            sourceType: source.sourceType,
+            sourceUrl: source.sourceUrl,
+            text,
+            language: 'en',
+            durationSeconds: source.durationSeconds,
+            createdAt: Date.now(),
+            status: 'FAILED',
+            errorMessage: validation.error,
+            isEdited: false,
+            originalTextRef: null,
+            isDemo: false
+          };
+          await storageService.saveTranscript(failedTranscript);
+
+          source.status = 'FAILED';
+          source.transcriptId = failedTranscript.id;
+          source.errorMessage = validation.error;
+          await storageService.saveRecording(source);
+          throw new Error(validation.error);
+        }
+
+        // Estimate duration if missing (approx 200 words/min = ~0.3 sec/word)
+        if (source.durationSeconds <= 0) {
+          const words = text.split(/\s+/).filter(Boolean).length;
+          source.durationSeconds = Math.max(60, Math.round(words * 0.3));
+        }
+
+        transcript = {
+          id: `tr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          recordingId: source.id,
+          sourceId: source.id,
+          sourceType: source.sourceType,
+          sourceUrl: source.sourceUrl,
+          text,
+          language: 'en',
+          durationSeconds: source.durationSeconds,
+          createdAt: Date.now(),
+          status: 'COMPLETED',
+          isEdited: false,
+          originalTextRef: null,
+          isDemo: false
+        };
+        await storageService.saveTranscript(transcript);
+        source.transcriptId = transcript.id;
+        await storageService.saveRecording(source);
+      } else {
+        throw new Error('No transcript or audio content could be extracted from link.');
+      }
+
+      if (!transcript) {
+        throw new Error('Failed to obtain a valid transcript from link.');
+      }
+
+      // §8 Note-Generation Gate Check
+      const noteGate = canGenerateNote(source, transcript);
+      if (!noteGate.valid) {
+        throw new Error(noteGate.error || 'Note generation gate check failed.');
+      }
+
+      // Stage 2: Synthesis (strictly takes verified transcript as input)
+      source.status = 'SYNTHESIZING';
+      await storageService.saveRecording(source, source.audioBlob);
+      updateJob('SYNTHESIZING', 'Synthesizing structured study notes, definitions & key concepts...');
+
+      const structuredNotes = await synthesisService.synthesizeNotes(
+        source,
+        transcript,
+        (msg) => updateJob('SYNTHESIZING', msg)
+      );
+
+      // Assemble formatted duration and date
+      const mins = Math.floor(source.durationSeconds / 60);
+      const formattedDuration = source.sourceType === 'URL_ARTICLE'
+        ? `${mins || 1} min read`
+        : (mins === 0 ? `${source.durationSeconds}s` : `${mins} mins`);
+
+      const formattedDate = new Date(source.createdAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric'
+      });
+
+      // Assemble Note with provenance and versioning (§4, §12)
+      const note: Note = {
+        id: `note_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        recordingId: source.id,
+        transcriptId: transcript.id,
+        sourceId: source.id,
+        sourceType: source.sourceType,
+        sourceUrl: source.sourceUrl,
+        userId: source.userId,
+        subject: source.subject,
+        title: structuredNotes.title || source.title,
+        date: formattedDate,
+        durationFormatted: formattedDuration,
+        durationSeconds: source.durationSeconds,
+        transcriptText: transcript.text,
+        structuredNotes: structuredNotes,
+        aiOriginalNotes: JSON.parse(JSON.stringify(structuredNotes)),
+        userEditedNotes: null,
+        source: 'ai_generated',
+        version: 1,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isDemo: false
+      };
+
+      await storageService.saveNote(note);
+
+      source.status = 'COMPLETED';
+      source.noteId = note.id;
+      await storageService.saveRecording(source, source.audioBlob);
+
+      updateJob('COMPLETED', 'Notes ready!');
+      return note;
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred during link note creation.';
+      const src = await storageService.getRecording(sourceId);
+      if (src) {
+        src.status = 'FAILED';
+        src.errorMessage = errorMsg;
+        await storageService.saveRecording(src, src.audioBlob);
+      }
+      updateJob('FAILED', 'Failed to generate note from link.', errorMsg);
+      throw new Error(errorMsg);
+    } finally {
+      this.activeJobs.delete(sourceId);
+    }
   }
 }
 

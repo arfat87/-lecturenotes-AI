@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.models.Note
 import com.example.data.models.Recording
 import com.example.data.models.RecordingStatus
+import com.example.data.models.SourceType
 import com.example.data.models.UserAccount
 import com.example.recording.AudioRecordingService
 import com.example.ui.theme.ExamFlagRed
@@ -83,6 +84,7 @@ fun HomeScreen(
     recordingStatus: AudioRecordingService.Companion.RecordingStatus,
     onNavigateToRecord: () -> Unit,
     onNavigateToSearch: () -> Unit,
+    onOpenAddLink: () -> Unit = {},
     onSelectNote: (Note) -> Unit,
     onRetryRecording: (String) -> Unit,
     onDeleteNote: (String) -> Unit,
@@ -126,6 +128,13 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = onOpenAddLink,
+                        modifier = Modifier.testTag("home_add_link_button")
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = "Add from Link", tint = IndigoPrimary)
+                    }
+
                     IconButton(
                         onClick = onNavigateToSearch,
                         modifier = Modifier.testTag("home_search_button")
@@ -316,11 +325,20 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Tap 'Record Lecture' at the start of class to capture genuine audio and generate verified notes.",
+                            text = "Record lecture audio or paste a link from YouTube, audio, or web articles to generate verified notes.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedButton(
+                            onClick = onOpenAddLink,
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp), tint = IndigoPrimary)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Create Note from Link", color = IndigoPrimary, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             } else {
@@ -352,6 +370,11 @@ fun PendingRecordingCard(
     val durationText = if (recording.durationSeconds > 0) {
         if (mins == 0L) "${recording.durationSeconds}s" else "$mins mins"
     } else "Audio Captured"
+    val sourceDesc = if (!recording.sourceUrl.isNullOrBlank()) {
+        "Source: ${recording.sourceUrl}"
+    } else {
+        "Duration: $durationText • Audio preserved in local storage"
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -391,7 +414,7 @@ fun PendingRecordingCard(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Duration: $durationText • Audio preserved in local storage",
+                text = sourceDesc,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -463,6 +486,25 @@ fun NoteCardItem(
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = OnIndigoContainer,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+                    val (sourceLabel, sourceColor) = when (note.sourceType) {
+                        SourceType.URL_VIDEO -> "YouTube" to Color(0xFFDC2626)
+                        SourceType.URL_AUDIO -> "Podcast / Audio" to Color(0xFF7C3AED)
+                        SourceType.URL_ARTICLE -> "Web Article" to Color(0xFF0284C7)
+                        else -> "Recording" to IndigoSecondary
+                    }
+                    Surface(
+                        color = sourceColor.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = sourceLabel,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = sourceColor,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
 

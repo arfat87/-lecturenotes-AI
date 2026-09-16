@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, AlertTriangle, BookOpen, Trash2, ChevronRight, Mic, Sparkles, Plus, RefreshCw, AlertCircle, Radio } from 'lucide-react';
+import { Clock, AlertTriangle, BookOpen, Trash2, ChevronRight, Mic, Sparkles, Plus, RefreshCw, AlertCircle, Radio, Link2, Globe, Video, Headphones } from 'lucide-react';
 import { Note, Recording } from '../types';
 
 interface HomeScreenProps {
@@ -10,6 +10,7 @@ interface HomeScreenProps {
   onDeleteNote: (id: string) => void;
   onDeleteRecording: (id: string) => void;
   onOpenRecord: () => void;
+  onOpenAddLink?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -19,7 +20,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onRetryRecording,
   onDeleteNote,
   onDeleteRecording,
-  onOpenRecord
+  onOpenRecord,
+  onOpenAddLink
 }) => {
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
 
@@ -55,15 +57,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               Record microphone audio, transcribe spoken content faithfully, and synthesize structured concepts, definitions, and exam alerts.
             </p>
           </div>
-          <div className="flex flex-shrink-0">
+          <div className="flex flex-col sm:flex-row flex-shrink-0 gap-2.5">
             <button
               onClick={onOpenRecord}
-              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-white text-indigo-900 hover:bg-indigo-50 font-bold text-xs sm:text-sm shadow-lg active:scale-95 transition-all min-h-[44px]"
+              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-5 py-3 rounded-xl sm:rounded-2xl bg-white text-indigo-900 hover:bg-indigo-50 font-bold text-xs sm:text-sm shadow-lg active:scale-95 transition-all min-h-[44px]"
               aria-label="Start recording a new lecture"
             >
-              <Mic className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600 flex-shrink-0" />
-              <span>Record New Lecture</span>
+              <Mic className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+              <span>Record Lecture</span>
             </button>
+            {onOpenAddLink && (
+              <button
+                onClick={onOpenAddLink}
+                className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-5 py-3 rounded-xl sm:rounded-2xl bg-indigo-700/80 hover:bg-indigo-600 text-white border border-indigo-400/30 font-bold text-xs sm:text-sm shadow-lg active:scale-95 transition-all min-h-[44px]"
+                aria-label="Create note from link or URL"
+              >
+                <Link2 className="w-4 h-4 text-indigo-200 flex-shrink-0" />
+                <span>Add from Link</span>
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -184,14 +196,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <BookOpen className="w-6 h-6" />
           </div>
           <h3 className="text-sm sm:text-base font-bold text-slate-900 mb-1">No lecture notes in this category</h3>
-          <p className="text-xs text-slate-500 mb-5">Start a new audio recording to generate your structured notes.</p>
-          <button
-            onClick={onOpenRecord}
-            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition min-h-[40px]"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Record New Lecture</span>
-          </button>
+          <p className="text-xs text-slate-500 mb-5">Start a new audio recording or ingest a link to generate your structured notes.</p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              onClick={onOpenRecord}
+              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition min-h-[40px]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Record New Lecture</span>
+            </button>
+            {onOpenAddLink && (
+              <button
+                onClick={onOpenAddLink}
+                className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold hover:bg-slate-200 transition min-h-[40px]"
+              >
+                <Link2 className="w-4 h-4 text-indigo-600" />
+                <span>Add from Link</span>
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
@@ -221,9 +244,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       <span className="inline-flex items-center px-2.5 py-0.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 truncate max-w-[150px]">
                         {note.subject}
                       </span>
-                      {note.isDemo && (
+                      {note.isDemo ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                           Demo Sample
+                        </span>
+                      ) : note.sourceUrl ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                          {note.sourceType === 'URL_VIDEO' ? (
+                            <Video className="w-3 h-3 mr-1 text-rose-500" />
+                          ) : note.sourceType === 'URL_AUDIO' ? (
+                            <Headphones className="w-3 h-3 mr-1 text-purple-500" />
+                          ) : (
+                            <Globe className="w-3 h-3 mr-1 text-sky-600" />
+                          )}
+                          <span>
+                            {note.sourceType === 'URL_VIDEO'
+                              ? 'Video'
+                              : note.sourceType === 'URL_AUDIO'
+                              ? 'Audio Link'
+                              : 'Article'}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Mic className="w-3 h-3 mr-1 text-emerald-600" />
+                          <span>Recording</span>
                         </span>
                       )}
                     </div>

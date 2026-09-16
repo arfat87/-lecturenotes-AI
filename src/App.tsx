@@ -7,6 +7,7 @@ import { NoteViewer } from './components/NoteViewer';
 import { NoteEditor } from './components/NoteEditor';
 import { SearchModal } from './components/SearchModal';
 import { AuthModal } from './components/AuthModal';
+import { AddLinkModal } from './components/AddLinkModal';
 import { Note, Recording, StructuredNotes, UserAccount, ProcessingJob } from './types';
 import { storageService } from './services/storageService';
 import { pipelineService } from './services/pipelineService';
@@ -20,6 +21,7 @@ export const App: React.FC = () => {
 
   // Modals & Background processing state
   const [isRecordOpen, setIsRecordOpen] = useState(false);
+  const [isAddLinkOpen, setIsAddLinkOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [activeJob, setActiveJob] = useState<ProcessingJob | null>(null);
@@ -79,6 +81,41 @@ export const App: React.FC = () => {
         recordingId,
         stage: 'FAILED',
         progressMessage: 'Pipeline failed.',
+        error: errorMsg
+      });
+    }
+  };
+
+  // Handler when URL/link is submitted for ingestion
+  const handleCreateNoteFromUrl = async (url: string, subject?: string, customTitle?: string) => {
+    setIsAddLinkOpen(false);
+
+    setActiveJob({
+      recordingId: 'url_job',
+      stage: 'VALIDATING',
+      progressMessage: 'Analyzing link and validating URL safety...'
+    });
+
+    try {
+      const generatedNote = await pipelineService.createNoteFromUrl(
+        url,
+        subject,
+        customTitle,
+        (job) => setActiveJob(job)
+      );
+
+      refreshData();
+      setSelectedNote(generatedNote);
+      setActiveJob(null);
+      setViewState('VIEW');
+    } catch (err: unknown) {
+      console.error('URL Pipeline processing error in App:', err);
+      refreshData();
+      const errorMsg = err instanceof Error ? err.message : 'Processing URL failed.';
+      setActiveJob({
+        recordingId: 'url_job',
+        stage: 'FAILED',
+        progressMessage: 'Failed to create note from link.',
         error: errorMsg
       });
     }
@@ -167,6 +204,7 @@ export const App: React.FC = () => {
       <Navbar
         user={user}
         onOpenRecord={() => setIsRecordOpen(true)}
+        onOpenAddLink={() => setIsAddLinkOpen(true)}
         onOpenSearch={() => setIsSearchOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
       />
@@ -184,6 +222,7 @@ export const App: React.FC = () => {
             onDeleteNote={handleDeleteNote}
             onDeleteRecording={handleDeleteRecording}
             onOpenRecord={() => setIsRecordOpen(true)}
+            onOpenAddLink={() => setIsAddLinkOpen(true)}
           />
         )}
 
@@ -212,6 +251,13 @@ export const App: React.FC = () => {
         onClose={() => setIsRecordOpen(false)}
         onRecordingSaved={handleRecordingSaved}
         userId={user.userId}
+      />
+
+      {/* Add from Link Modal */}
+      <AddLinkModal
+        isOpen={isAddLinkOpen}
+        onClose={() => setIsAddLinkOpen(false)}
+        onSubmit={handleCreateNoteFromUrl}
       />
 
       {/* Processing AI Modal */}

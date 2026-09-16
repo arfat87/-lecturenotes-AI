@@ -9,10 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.ui.screens.AddLinkDialog
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.NoteEditorScreen
@@ -62,6 +66,8 @@ fun LectureNotesApp(viewModel: LectureViewModel) {
     val activeJob by viewModel.activeJob.collectAsState()
     val selectedNote by viewModel.selectedNote.collectAsState()
 
+    var showAddLinkDialog by remember { mutableStateOf(false) }
+
     val startDestination = if (isLoggedIn) Routes.HOME else Routes.AUTH
 
     NavHost(
@@ -93,6 +99,9 @@ fun LectureNotesApp(viewModel: LectureViewModel) {
                 },
                 onNavigateToSearch = {
                     navController.navigate(Routes.SEARCH)
+                },
+                onOpenAddLink = {
+                    showAddLinkDialog = true
                 },
                 onSelectNote = { note ->
                     viewModel.selectNote(note)
@@ -248,5 +257,28 @@ fun LectureNotesApp(viewModel: LectureViewModel) {
                 }
             )
         }
+    }
+
+    if (showAddLinkDialog) {
+        AddLinkDialog(
+            onDismiss = { showAddLinkDialog = false },
+            onSubmit = { url, subject, customTitle ->
+                showAddLinkDialog = false
+                viewModel.createNoteFromUrl(
+                    url = url,
+                    subject = subject,
+                    customTitle = customTitle,
+                    onSuccess = { _ ->
+                        navController.navigate(Routes.NOTE_VIEWER) {
+                            popUpTo(Routes.PROCESSING) { inclusive = true }
+                        }
+                    },
+                    onError = {
+                        // Remains on processing screen showing error with retry button
+                    }
+                )
+                navController.navigate(Routes.PROCESSING)
+            }
+        )
     }
 }

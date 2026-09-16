@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Edit3, Trash2, Bookmark, AlertTriangle, FileText, Copy, Check, Sparkles, Clock, RefreshCw, Volume2, ShieldCheck, Database } from 'lucide-react';
+import { ArrowLeft, Edit3, Trash2, Bookmark, AlertTriangle, FileText, Copy, Check, Sparkles, Clock, RefreshCw, Volume2, ShieldCheck, Database, Globe, ExternalLink, Video, Headphones } from 'lucide-react';
 import { Note, Recording } from '../types';
 import { indexedDbService } from '../services/indexedDbService';
 
@@ -183,11 +183,46 @@ export const NoteViewer: React.FC<NoteViewerProps> = ({
               </p>
             </div>
           </div>
+        ) : note.sourceUrl ? (
+          <div className="bg-sky-50/70 border border-sky-200/70 rounded-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2 text-xs text-sky-950">
+            <div className="flex items-center space-x-2">
+              {note.sourceType === 'URL_VIDEO' ? (
+                <Video className="w-4 h-4 text-rose-500 flex-shrink-0" />
+              ) : note.sourceType === 'URL_AUDIO' ? (
+                <Headphones className="w-4 h-4 text-purple-500 flex-shrink-0" />
+              ) : (
+                <Globe className="w-4 h-4 text-sky-600 flex-shrink-0" />
+              )}
+              <span className="font-bold">
+                From link:{' '}
+                {(() => {
+                  try {
+                    return new URL(note.sourceUrl).hostname;
+                  } catch {
+                    return note.sourceUrl;
+                  }
+                })()}
+              </span>
+              <span className="text-sky-400 hidden sm:inline">•</span>
+              <a
+                href={note.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sky-700 hover:text-sky-900 underline inline-flex items-center space-x-1 font-medium"
+              >
+                <span>Open original source</span>
+                <ExternalLink className="w-3 h-3 ml-0.5 inline" />
+              </a>
+            </div>
+            <span className="text-[11px] font-semibold text-sky-800 bg-sky-100/80 px-2.5 py-0.5 rounded-full">
+              Source: {note.sourceType === 'URL_VIDEO' ? 'Online Video' : note.sourceType === 'URL_AUDIO' ? 'Podcast Audio' : 'Web Article'}
+            </span>
+          </div>
         ) : (
           <div className="bg-emerald-50/70 border border-emerald-200/70 rounded-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-950">
             <div className="flex items-center space-x-2">
               <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span className="font-bold">Verified Audio Provenance</span>
+              <span className="font-bold">From recording</span>
               <span className="text-emerald-700 hidden sm:inline">•</span>
               <span className="text-emerald-700 text-[11px] font-mono hidden sm:inline">
                 Recording ID: {note.recordingId.substring(0, 16)}...
@@ -209,7 +244,7 @@ export const NoteViewer: React.FC<NoteViewerProps> = ({
               </div>
               {recording && (
                 <span className="text-[11px] text-indigo-600 font-normal">
-                  {(recording.fileSizeBytes / (1024 * 1024)).toFixed(2)} MB • {recording.audioMimeType}
+                  {recording.fileSizeBytes ? `${(recording.fileSizeBytes / (1024 * 1024)).toFixed(2)} MB • ` : ''}{recording.audioMimeType || 'audio'}
                 </span>
               )}
             </div>

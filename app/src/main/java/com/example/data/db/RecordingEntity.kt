@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.example.data.models.Recording
 import com.example.data.models.RecordingStatus
+import com.example.data.models.SourceType
 
 @Entity(tableName = "recordings")
 data class RecordingEntity(
@@ -18,13 +19,20 @@ data class RecordingEntity(
     val status: String,
     val errorMessage: String? = null,
     val transcriptId: String? = null,
-    val noteId: String? = null
+    val noteId: String? = null,
+    val sourceType: String = "AUDIO_RECORDING",
+    val sourceUrl: String? = null
 ) {
     fun toDomainModel(): Recording {
         val statusEnum = try {
             RecordingStatus.valueOf(status)
         } catch (e: Exception) {
             RecordingStatus.STOPPED
+        }
+        val sourceTypeEnum = try {
+            SourceType.valueOf(sourceType)
+        } catch (e: Exception) {
+            SourceType.AUDIO_RECORDING
         }
         return Recording(
             id = id,
@@ -38,7 +46,9 @@ data class RecordingEntity(
             status = statusEnum,
             errorMessage = errorMessage,
             transcriptId = transcriptId,
-            noteId = noteId
+            noteId = noteId,
+            sourceType = sourceTypeEnum,
+            sourceUrl = sourceUrl
         )
     }
 
@@ -56,8 +66,11 @@ data class RecordingEntity(
                 status = rec.status.name,
                 errorMessage = rec.errorMessage,
                 transcriptId = rec.transcriptId,
-                noteId = rec.noteId
+                noteId = rec.noteId,
+                sourceType = rec.sourceType.name,
+                sourceUrl = rec.sourceUrl
             )
         }
     }
 }
+

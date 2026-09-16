@@ -3,6 +3,7 @@ import { Note, Recording, Transcript } from '../types';
 export const DEMO_RECORDING_1: Recording = {
   id: 'demo_rec_1',
   userId: 'usr_101',
+  sourceType: 'AUDIO_RECORDING',
   subject: 'Computer Science 106B',
   title: 'Graph Algorithms & Breadth-First Search',
   durationSeconds: 3120,
@@ -19,6 +20,7 @@ export const DEMO_RECORDING_1: Recording = {
 export const DEMO_TRANSCRIPT_1: Transcript = {
   id: 'demo_tr_1',
   recordingId: 'demo_rec_1',
+  sourceId: 'demo_rec_1',
   text: 'Welcome class. Today we are diving into Graph Theory and state space search. Graphs consist of vertices V and edges E. Breadth-First Search uses a FIFO queue to visit nodes level by level. It guarantees the shortest path in unweighted graphs. Remember this for Midterm 2!',
   language: 'en',
   durationSeconds: 3120,
@@ -32,6 +34,8 @@ export const DEMO_TRANSCRIPT_1: Transcript = {
 export const DEMO_NOTE_1: Note = {
   id: 'demo_note_1',
   recordingId: 'demo_rec_1',
+  sourceId: 'demo_rec_1',
+  sourceType: 'AUDIO_RECORDING',
   transcriptId: 'demo_tr_1',
   userId: 'usr_101',
   subject: 'Computer Science 106B',
@@ -100,6 +104,7 @@ export const DEMO_NOTE_1: Note = {
 export const DEMO_RECORDING_2: Recording = {
   id: 'demo_rec_2',
   userId: 'usr_101',
+  sourceType: 'AUDIO_RECORDING',
   subject: 'Organic Chemistry',
   title: 'Nucleophilic Substitution (SN1 vs SN2)',
   durationSeconds: 2880,
@@ -116,6 +121,7 @@ export const DEMO_RECORDING_2: Recording = {
 export const DEMO_TRANSCRIPT_2: Transcript = {
   id: 'demo_tr_2',
   recordingId: 'demo_rec_2',
+  sourceId: 'demo_rec_2',
   text: 'Today we discuss SN1 and SN2 reaction mechanisms. SN2 is a bimolecular single-step backside attack causing Walden inversion. SN1 goes through a carbocation intermediate.',
   language: 'en',
   durationSeconds: 2880,
@@ -129,6 +135,8 @@ export const DEMO_TRANSCRIPT_2: Transcript = {
 export const DEMO_NOTE_2: Note = {
   id: 'demo_note_2',
   recordingId: 'demo_rec_2',
+  sourceId: 'demo_rec_2',
+  sourceType: 'AUDIO_RECORDING',
   transcriptId: 'demo_tr_2',
   userId: 'usr_101',
   subject: 'Organic Chemistry',

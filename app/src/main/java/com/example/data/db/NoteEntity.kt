@@ -25,7 +25,10 @@ data class NoteEntity(
     val version: Int = 1,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val isDemo: Boolean = false
+    val isDemo: Boolean = false,
+    val sourceId: String? = null,
+    val sourceType: String? = null,
+    val sourceUrl: String? = null
 ) {
     fun toDomainModel(moshi: Moshi): Note {
         val adapter = moshi.adapter(StructuredNotes::class.java)
@@ -43,6 +46,9 @@ data class NoteEntity(
             userEditedNotesJson?.let { adapter.fromJson(it) }
         } catch (e: Exception) {
             null
+        }
+        val sourceTypeEnum = sourceType?.let {
+            try { com.example.data.models.SourceType.valueOf(it) } catch (e: Exception) { null }
         }
 
         return Note(
@@ -63,7 +69,10 @@ data class NoteEntity(
             version = version,
             createdAt = createdAt,
             updatedAt = updatedAt,
-            isDemo = isDemo
+            isDemo = isDemo,
+            sourceId = sourceId,
+            sourceType = sourceTypeEnum,
+            sourceUrl = sourceUrl
         )
     }
 
@@ -92,7 +101,10 @@ data class NoteEntity(
                 version = note.version,
                 createdAt = note.createdAt,
                 updatedAt = note.updatedAt,
-                isDemo = note.isDemo
+                isDemo = note.isDemo,
+                sourceId = note.sourceId,
+                sourceType = note.sourceType?.name,
+                sourceUrl = note.sourceUrl
             )
         }
     }

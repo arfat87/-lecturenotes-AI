@@ -2,6 +2,7 @@ package com.example.data.db
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.example.data.models.SourceType
 import com.example.data.models.Transcript
 import com.example.data.models.TranscriptStatus
 
@@ -17,13 +18,19 @@ data class TranscriptEntity(
     val errorMessage: String? = null,
     val isEdited: Boolean = false,
     val originalTextRef: String? = null,
-    val isDemo: Boolean = false
+    val isDemo: Boolean = false,
+    val sourceId: String? = null,
+    val sourceType: String? = null,
+    val sourceUrl: String? = null
 ) {
     fun toDomainModel(): Transcript {
         val statusEnum = try {
             TranscriptStatus.valueOf(status)
         } catch (e: Exception) {
             TranscriptStatus.COMPLETED
+        }
+        val sourceTypeEnum = sourceType?.let {
+            try { SourceType.valueOf(it) } catch (e: Exception) { null }
         }
         return Transcript(
             id = id,
@@ -36,7 +43,10 @@ data class TranscriptEntity(
             errorMessage = errorMessage,
             isEdited = isEdited,
             originalTextRef = originalTextRef,
-            isDemo = isDemo
+            isDemo = isDemo,
+            sourceId = sourceId,
+            sourceType = sourceTypeEnum,
+            sourceUrl = sourceUrl
         )
     }
 
@@ -53,8 +63,12 @@ data class TranscriptEntity(
                 errorMessage = tr.errorMessage,
                 isEdited = tr.isEdited,
                 originalTextRef = tr.originalTextRef,
-                isDemo = tr.isDemo
+                isDemo = tr.isDemo,
+                sourceId = tr.sourceId,
+                sourceType = tr.sourceType?.name,
+                sourceUrl = tr.sourceUrl
             )
         }
     }
 }
+

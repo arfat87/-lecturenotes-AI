@@ -7,10 +7,12 @@ import com.example.data.models.NoteSection
 import com.example.data.models.ProcessingStage
 import com.example.data.models.Recording
 import com.example.data.models.RecordingStatus
+import com.example.data.models.SourceType
 import com.example.data.models.StructuredNotes
 import com.example.data.models.Transcript
 import com.example.data.models.TranscriptStatus
 import com.example.data.repository.LectureRepository
+import com.example.data.service.LinkIngestionService
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -318,5 +320,98 @@ class PipelineIntegrityTest {
         assertEquals("Original Title", loaded.structuredNotes.title)
 
         repository.deleteNote("note_version_test")
+    }
+
+    @Test
+    fun `validateUrl SSRF protection rejects private, loopback, and cloud metadata IPs`() {
+        val ingestionService = LinkIngestionService()
+
+        // Localhost & loopback
+        assertFalse(ingestionService.validateUrl("http://localhost:8080/admin").isValid)
+        assertFalse(ingestionService.validateUrl("http://127.0.0.1/status").isValid)
+        assertFalse(ingestionService.validateUrl("http://[::1]/secret").isValid)
+
+        // RFC 1918 Private ranges
+        assertFalse(ingestionService.validateUrl("http://192.168.1.1/router").isValid)
+        assertFalse(ingestionService.validateUrl("http://10.0.0.1/db").isValid)
+        assertFalse(ingestionService.validateUrl("http://172.16.0.5/internal").isValid)
+        assertFalse(ingestionService.validateUrl("http://172.31.255.255/internal").isValid)
+
+        // Cloud metadata & link-local
+        assertFalse(ingestionService.validateUrl("http://169.254.169.254/latest/meta-data").isValid)
+
+        // Local domains
+        assertFalse(ingestionService.validateUrl("http://mycomputer.local/index.html").isValid)
+        assertFalse(ingestionService.validateUrl("http://mycluster.internal/status").isValid)
+
+        // Non http/https schemes
+        assertFalse(ingestionService.validateUrl("ftp://example.com/file").isValid)
+        assertFalse(ingestionService.validateUrl("file:///etc/passwd").isValid)
+
+        // Public URLs must be valid
+        assertTrue(ingestionService.validateUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ").isValid)
+        assertTrue(ingestionService.validateUrl("https://en.wikipedia.org/wiki/Machine_learning").isValid)
+    }
+
+    @Test
+    fun `detectSourceType classifies URLs into video, audio, or article accurately`() {
+        val ingestionService = LinkIngestionService()
+
+        // Video
+        assertEquals(SourceType.URL_VIDEO, ingestionService.detectSourceType("https://www.youtube.com/watch?v=12345"))
+        assertEquals(SourceType.URL_VIDEO, ingestionService.detectSourceType("https://youtu.be/12345"))
+        assertEquals(SourceType.URL_VIDEO, ingestionService.detectSourceType("https://vimeo.com/987654"))
+
+        // Audio
+        assertEquals(SourceType.URL_AUDIO, ingestionService.detectSourceType("https://open.spotify.com/episode/abc"))
+        assertEquals(SourceType.URL_AUDIO, ingestionService.detectSourceType("https://podcasts.apple.com/us/podcast/123"))
+        assertEquals(SourceType.URL_AUDIO, ingestionService.detectSourceType("https://example.com/lecture.mp3"))
+
+        // Web Article
+        assertEquals(SourceType.URL_ARTICLE, ingestionService.detectSourceType("https://en.wikipedia.org/wiki/Deep_learning"))
+        assertEquals(SourceType.URL_ARTICLE, ingestionService.detectSourceType("https://medium.com/@author/neural-networks"))
+    }
+
+    @Test
+    fun `article extraction strips scripts, navs, headers, and extracts meaningful text`() {
+        val ingestionService = LinkIngestionService()
+        val rawHtml = """
+            <!DOCTYPE html>
+            <html>
+            <head><title>Lecture on Computer Systems</title></head>
+            <body>
+                <header><nav><a href="/home">Home</a></nav></header>
+                <article>
+                    <h1>Introduction to Virtual Memory</h1>
+                    <p>Virtual memory is a memory management technique that provides an idealized abstraction of the storage resources that are actually available on a given machine which creates the illusion to users of a very large main memory.</p>
+                </article>
+                <script>console.log("tracking code");</script>
+                <footer>&copy; 2026 University</footer>
+            </body>
+            </html>
+        """.trimIndent()
+
+        val (title, text) = ingestionService.extractArticleText(rawHtml)
+        assertEquals("Lecture on Computer Systems", title)
+        assertTrue("Extracted text must contain article heading", text.contains("Introduction to Virtual Memory"))
+        assertTrue("Extracted text must contain article body", text.contains("Virtual memory is a memory management technique"))
+        assertFalse("Extracted text must not contain script content", text.contains("tracking code"))
+        assertFalse("Extracted text must not contain navigation links", text.contains("Home"))
+    }
+
+    @Test
+    fun `createNoteFromUrl rejects SSRF attack without creating fake notes`() = runBlocking {
+        var failed = false
+        try {
+            repository.createNoteFromUrl(
+                url = "http://127.0.0.1:8080/internal-api",
+                subject = "Computer Science"
+            )
+        } catch (e: IllegalArgumentException) {
+            failed = true
+            assertTrue("Error message must mention private IP or localhost", e.message!!.contains("SSRF") || e.message!!.contains("private") || e.message!!.contains("Loopback") || e.message!!.contains("Localhost"))
+        }
+
+        assertTrue("Expected createNoteFromUrl to throw IllegalArgumentException on SSRF URL", failed)
     }
 }

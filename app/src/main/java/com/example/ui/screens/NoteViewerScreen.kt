@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
@@ -50,19 +52,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.models.Definition
 import com.example.data.models.Note
 import com.example.data.models.NoteSection
+import com.example.data.models.SourceType
 import com.example.ui.theme.DefinitionAmber
 import com.example.ui.theme.DefinitionAmberContainer
 import com.example.ui.theme.ExamFlagContainer
 import com.example.ui.theme.ExamFlagRed
 import com.example.ui.theme.IndigoContainer
 import com.example.ui.theme.IndigoPrimary
+import com.example.ui.theme.IndigoSecondary
 import com.example.ui.theme.OnIndigoContainer
 import com.example.ui.theme.SuccessGreen
 
@@ -137,6 +143,41 @@ fun NoteViewerScreen(
                             }
                         }
                     }
+                } else if (!note.sourceUrl.isNullOrBlank()) {
+                    val uriHandler = LocalUriHandler.current
+                    val host = try {
+                        java.net.URI(note.sourceUrl).host ?: note.sourceUrl
+                    } catch (e: Exception) {
+                        note.sourceUrl
+                    }
+                    val (typeLabel, iconTint) = when (note.sourceType) {
+                        SourceType.URL_VIDEO -> "Video Link" to Color(0xFFDC2626)
+                        SourceType.URL_AUDIO -> "Audio Link" to Color(0xFF7C3AED)
+                        else -> "Web Article" to Color(0xFF0284C7)
+                    }
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                try {
+                                    uriHandler.openUri(note.sourceUrl)
+                                } catch (_: Exception) {}
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Link, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("From $typeLabel: $host ↗", fontWeight = FontWeight.Bold, color = Color(0xFF0369A1), style = MaterialTheme.typography.labelMedium)
+                                Text(note.sourceUrl, style = MaterialTheme.typography.bodySmall, color = Color(0xFF0284C7), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
                 } else {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFECFDF5)),
@@ -176,6 +217,23 @@ fun NoteViewerScreen(
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     color = OnIndigoContainer,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                            val (sourceLabel, sourceColor) = when (note.sourceType) {
+                                SourceType.URL_VIDEO -> "YouTube" to Color(0xFFDC2626)
+                                SourceType.URL_AUDIO -> "Podcast / Audio" to Color(0xFF7C3AED)
+                                SourceType.URL_ARTICLE -> "Web Article" to Color(0xFF0284C7)
+                                else -> "Recording" to IndigoSecondary
+                            }
+                            Surface(
+                                color = sourceColor.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = sourceLabel,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = sourceColor,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
                             Surface(

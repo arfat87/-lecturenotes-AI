@@ -161,6 +161,41 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun createNoteFromUrl(
+        url: String,
+        subject: String = "General",
+        customTitle: String? = null,
+        onSuccess: (String) -> Unit = {},
+        onError: (String) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _activeJob.value = ProcessingJob(
+                recordingId = "url_job",
+                stage = ProcessingStage.VALIDATING,
+                progressMessage = "Analyzing link and validating URL..."
+            )
+
+            try {
+                val note = repository.createNoteFromUrl(url, subject, customTitle) { job ->
+                    _activeJob.value = job
+                }
+                _selectedNote.value = note
+                _activeJob.value = null
+                onSuccess(note.id)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                val errorMsg = e.localizedMessage ?: "Failed to process link."
+                _activeJob.value = ProcessingJob(
+                    recordingId = "url_job",
+                    stage = ProcessingStage.FAILED,
+                    progressMessage = "Link processing failed.",
+                    error = errorMsg
+                )
+                onError(errorMsg)
+            }
+        }
+    }
+
     fun dismissProcessingJob() {
         _activeJob.value = null
     }

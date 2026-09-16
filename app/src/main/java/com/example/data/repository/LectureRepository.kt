@@ -15,7 +15,10 @@ import com.example.data.models.Recording
 import com.example.data.models.RecordingStatus
 import com.example.data.models.StructuredNotes
 import com.example.data.models.Transcript
+import com.example.data.models.TranscriptStatus
 import com.example.data.models.UserAccount
+import com.example.data.models.SourceType
+import com.example.data.service.LinkIngestionService
 import com.example.data.service.SynthesisService
 import com.example.data.service.TranscriptionService
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +40,8 @@ class LectureRepository(
     private val context: Context,
     private val dao: LectureDao = LectureDatabase.getDatabase(context).lectureDao(),
     private val transcriptionService: TranscriptionService = TranscriptionService(),
-    private val synthesisService: SynthesisService = SynthesisService()
+    private val synthesisService: SynthesisService = SynthesisService(),
+    private val linkIngestionService: LinkIngestionService = LinkIngestionService()
 ) {
     private val moshi = GeminiClient.moshi
     private val activeJobs = Collections.synchronizedSet(mutableSetOf<String>())
@@ -404,7 +408,182 @@ class LectureRepository(
         recordingId: String,
         onJobUpdate: (ProcessingJob) -> Unit = {}
     ): Note {
+        val rec = getRecordingById(recordingId)
+        if (rec != null && !rec.sourceUrl.isNullOrBlank()) {
+            return createNoteFromUrl(rec.sourceUrl, rec.subject, rec.title, onJobUpdate)
+        }
         return createNoteFromRecording(recordingId, onJobUpdate)
+    }
+
+    /**
+     * Pipeline for creating a note from a URL/link (YouTube, Podcast, Web Article).
+     * Path A: Video/Audio Link -> Extract Captions or Audio -> Transcribe if needed -> Verified Transcript -> Stage 2 Synthesis
+     * Path B: Article Link -> Fetch & Extract Article Text -> Verified Transcript -> Stage 2 Synthesis
+     * Follows the exact same §7 candidate transcript validation gate and §8 note generation gate.
+     */
+    suspend fun createNoteFromUrl(
+        url: String,
+        subject: String = "General",
+        customTitle: String? = null,
+        onJobUpdate: (ProcessingJob) -> Unit = {}
+    ): Note = withContext(Dispatchers.IO) {
+        val validation = linkIngestionService.validateUrl(url)
+        if (!validation.isValid) {
+            throw IllegalArgumentException(validation.error ?: "Invalid URL")
+        }
+
+        val sourceId = "src_" + UUID.randomUUID().toString().take(8)
+        if (activeJobs.contains(sourceId)) {
+            throw IllegalStateException("A processing job is already in progress for source: $sourceId")
+        }
+        activeJobs.add(sourceId)
+
+        val updateJob = { stage: ProcessingStage, msg: String, err: String? ->
+            onJobUpdate(ProcessingJob(sourceId, stage, msg, err))
+        }
+
+        try {
+            updateJob(ProcessingStage.VALIDATING, "Analyzing link and verifying safety...", null)
+            val detectedType = linkIngestionService.detectSourceType(url)
+
+            val source = Recording(
+                id = sourceId,
+                userId = _currentUser.value.userId,
+                subject = subject.ifBlank { "General" },
+                title = customTitle?.ifBlank { null } ?: (if (detectedType == SourceType.URL_ARTICLE) "Web Article" else "Online Lecture"),
+                audioPath = "",
+                durationSeconds = 0L,
+                fileSizeBytes = 0L,
+                createdAt = System.currentTimeMillis(),
+                status = RecordingStatus.FETCHING,
+                sourceType = detectedType,
+                sourceUrl = url
+            )
+            saveRecording(source)
+
+            updateJob(ProcessingStage.VALIDATING, "Fetching and extracting content from link...", null)
+            val content = linkIngestionService.ingestUrl(url) { msg ->
+                updateJob(ProcessingStage.VALIDATING, msg, null)
+            }
+
+            // §7 Candidate Transcript Gate
+            val transcriptVal = validateTranscriptText(content.transcriptText, false)
+            if (!transcriptVal.isValid) {
+                val failedTranscript = Transcript(
+                    id = "tr_" + UUID.randomUUID().toString().take(8),
+                    recordingId = source.id,
+                    sourceId = source.id,
+                    sourceType = source.sourceType,
+                    sourceUrl = source.sourceUrl,
+                    text = content.transcriptText,
+                    durationSeconds = content.durationSeconds,
+                    createdAt = System.currentTimeMillis(),
+                    status = TranscriptStatus.FAILED,
+                    errorMessage = transcriptVal.error
+                )
+                dao.insertTranscript(TranscriptEntity.fromDomainModel(failedTranscript))
+
+                val failedSource = source.copy(
+                    status = RecordingStatus.FAILED,
+                    errorMessage = transcriptVal.error,
+                    transcriptId = failedTranscript.id
+                )
+                saveRecording(failedSource)
+                throw IllegalStateException(transcriptVal.error)
+            }
+
+            // Save COMPLETED transcript
+            val transcript = Transcript(
+                id = "tr_" + UUID.randomUUID().toString().take(8),
+                recordingId = source.id,
+                sourceId = source.id,
+                sourceType = source.sourceType,
+                sourceUrl = source.sourceUrl,
+                text = content.transcriptText,
+                durationSeconds = content.durationSeconds,
+                createdAt = System.currentTimeMillis(),
+                status = TranscriptStatus.COMPLETED
+            )
+            dao.insertTranscript(TranscriptEntity.fromDomainModel(transcript))
+
+            val updatedSource = source.copy(
+                title = if (customTitle.isNullOrBlank() && !content.detectedTitle.isNullOrBlank()) content.detectedTitle else source.title,
+                durationSeconds = content.durationSeconds,
+                transcriptId = transcript.id
+            )
+            saveRecording(updatedSource)
+
+            // §8 Note-Generation Gate Check
+            val noteGate = canGenerateNote(updatedSource, transcript)
+            if (!noteGate.isValid) {
+                throw IllegalStateException(noteGate.error ?: "Note generation gate check failed.")
+            }
+
+            // Stage 2: Synthesis
+            val synthesizingSource = updatedSource.copy(status = RecordingStatus.SYNTHESIZING)
+            saveRecording(synthesizingSource)
+            updateJob(ProcessingStage.SYNTHESIZING, "Synthesizing structured study notes, definitions & key concepts...", null)
+
+            val structuredNotes = synthesisService.synthesizeNotes(synthesizingSource, transcript) { msg ->
+                updateJob(ProcessingStage.SYNTHESIZING, msg, null)
+            }
+
+            // Format date & duration
+            val currentDate = SimpleDateFormat("MMM dd, yyyy", Locale.US).format(Date(synthesizingSource.createdAt))
+            val mins = synthesizingSource.durationSeconds / 60
+            val formattedDuration = if (synthesizingSource.sourceType == SourceType.URL_ARTICLE) {
+                "${if (mins == 0L) 1L else mins} min read"
+            } else {
+                if (synthesizingSource.durationSeconds > 0) {
+                    if (mins == 0L) "${synthesizingSource.durationSeconds}s" else "$mins mins"
+                } else "45 mins"
+            }
+
+            val noteId = "note_" + UUID.randomUUID().toString().take(8)
+            val note = Note(
+                id = noteId,
+                recordingId = synthesizingSource.id,
+                transcriptId = transcript.id,
+                sourceId = synthesizingSource.id,
+                sourceType = synthesizingSource.sourceType,
+                sourceUrl = synthesizingSource.sourceUrl,
+                userId = synthesizingSource.userId,
+                subject = synthesizingSource.subject,
+                title = if (structuredNotes.title.isNotBlank()) structuredNotes.title else synthesizingSource.title,
+                date = currentDate,
+                durationFormatted = formattedDuration,
+                durationSeconds = synthesizingSource.durationSeconds,
+                transcriptText = transcript.text,
+                structuredNotes = structuredNotes,
+                aiOriginalNotes = structuredNotes,
+                userEditedNotes = null,
+                source = "ai_generated",
+                version = 1,
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+                isDemo = false
+            )
+            saveNote(note)
+
+            val completedSource = synthesizingSource.copy(
+                status = RecordingStatus.COMPLETED,
+                noteId = note.id
+            )
+            saveRecording(completedSource)
+
+            updateJob(ProcessingStage.COMPLETED, "Notes ready!", null)
+            return@withContext note
+        } catch (e: Exception) {
+            val errorMsg = e.localizedMessage ?: "Note creation from link failed."
+            val src = dao.getRecordingById(sourceId)?.toDomainModel()
+            if (src != null) {
+                saveRecording(src.copy(status = RecordingStatus.FAILED, errorMessage = errorMsg))
+            }
+            updateJob(ProcessingStage.FAILED, "Failed to generate note from link.", errorMsg)
+            throw e
+        } finally {
+            activeJobs.remove(sourceId)
+        }
     }
 
     /**

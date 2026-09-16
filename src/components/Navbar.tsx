@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Search, GraduationCap, Sparkles } from 'lucide-react';
+import { Mic, Search, GraduationCap, Sparkles, Link2 } from 'lucide-react';
 import { UserAccount } from '../types';
 
 interface NavbarProps {
@@ -7,13 +7,15 @@ interface NavbarProps {
   onOpenRecord: () => void;
   onOpenSearch: () => void;
   onOpenAuth: () => void;
+  onOpenAddLink?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   user,
   onOpenRecord,
   onOpenSearch,
-  onOpenAuth
+  onOpenAuth,
+  onOpenAddLink
 }) => {
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200" role="banner">
@@ -55,6 +57,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden sm:inline">Search...</span>
             <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-white border border-slate-200 rounded text-slate-400">⌘K</kbd>
           </button>
+
+          {onOpenAddLink && (
+            <button
+              onClick={onOpenAddLink}
+              className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 active:scale-95 transition-all min-h-[40px]"
+              aria-label="Add from link"
+              title="Add lecture or article from URL"
+            >
+              <Link2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />
+              <span className="hidden sm:inline">Add Link</span>
+            </button>
+          )}
 
           <button
             onClick={onOpenRecord}

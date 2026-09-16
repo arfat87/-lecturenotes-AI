@@ -12,6 +12,16 @@ const STORES = {
 
 class IndexedDbService {
   private dbPromise: Promise<IDBDatabase> | null = null;
+  private memoryStore = {
+    recordings: new Map<string, Recording>(),
+    transcripts: new Map<string, Transcript>(),
+    notes: new Map<string, Note>(),
+    audioBlobs: new Map<string, Blob>()
+  };
+
+  private isSupported(): boolean {
+    return typeof indexedDB !== 'undefined';
+  }
 
   private getDB(): Promise<IDBDatabase> {
     if (this.dbPromise) return this.dbPromise;
@@ -46,6 +56,15 @@ class IndexedDbService {
   // --- RECORDINGS & BINARY AUDIO ---
 
   async saveRecording(recording: Recording, audioBlob?: Blob | null): Promise<void> {
+    if (!this.isSupported()) {
+      const meta: Recording = { ...recording, audioBlob: null };
+      this.memoryStore.recordings.set(recording.id, meta);
+      if (audioBlob) {
+        this.memoryStore.audioBlobs.set(recording.id, audioBlob);
+      }
+      return;
+    }
+
     const db = await this.getDB();
     
     // Save recording metadata without the blob in metadata store for fast query
@@ -68,6 +87,12 @@ class IndexedDbService {
   }
 
   async getRecording(id: string): Promise<Recording | null> {
+    if (!this.isSupported()) {
+      const rec = this.memoryStore.recordings.get(id);
+      if (!rec) return null;
+      return { ...rec, audioBlob: this.memoryStore.audioBlobs.get(id) || null };
+    }
+
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction([STORES.RECORDINGS, STORES.AUDIO_BLOBS], 'readonly');
@@ -92,6 +117,10 @@ class IndexedDbService {
   }
 
   async getAllRecordings(): Promise<Recording[]> {
+    if (!this.isSupported()) {
+      return Array.from(this.memoryStore.recordings.values());
+    }
+
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORES.RECORDINGS, 'readonly');
@@ -104,6 +133,12 @@ class IndexedDbService {
   }
 
   async deleteRecording(id: string): Promise<void> {
+    if (!this.isSupported()) {
+      this.memoryStore.recordings.delete(id);
+      this.memoryStore.audioBlobs.delete(id);
+      return;
+    }
+
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction([STORES.RECORDINGS, STORES.AUDIO_BLOBS], 'readwrite');
@@ -117,6 +152,11 @@ class IndexedDbService {
   // --- TRANSCRIPTS ---
 
   async saveTranscript(transcript: Transcript): Promise<void> {
+    if (!this.isSupported()) {
+      this.memoryStore.transcripts.set(transcript.id, { ...transcript });
+      return;
+    }
+
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORES.TRANSCRIPTS, 'readwrite');
@@ -127,6 +167,11 @@ class IndexedDbService {
   }
 
   async getTranscript(id: string): Promise<Transcript | null> {
+    if (!this.isSupported()) {
+      const tr = this.memoryStore.transcripts.get(id);
+      return tr ? { ...tr } : null;
+    }
+
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORES.TRANSCRIPTS, 'readonly');
@@ -139,6 +184,11 @@ class IndexedDbService {
   // --- NOTES ---
 
   async saveNote(note: Note): Promise<void> {
+    if (!this.isSupported()) {
+      this.memoryStore.notes.set(note.id, { ...note });
+      return;
+    }
+
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORES.NOTES, 'readwrite');
@@ -149,6 +199,11 @@ class IndexedDbService {
   }
 
   async getNote(id: string): Promise<Note | null> {
+    if (!this.isSupported()) {
+      const n = this.memoryStore.notes.get(id);
+      return n ? { ...n } : null;
+    }
+
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORES.NOTES, 'readonly');
@@ -159,6 +214,10 @@ class IndexedDbService {
   }
 
   async getAllNotes(): Promise<Note[]> {
+    if (!this.isSupported()) {
+      return Array.from(this.memoryStore.notes.values());
+    }
+
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORES.NOTES, 'readonly');
@@ -169,6 +228,11 @@ class IndexedDbService {
   }
 
   async deleteNote(id: string): Promise<void> {
+    if (!this.isSupported()) {
+      this.memoryStore.notes.delete(id);
+      return;
+    }
+
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORES.NOTES, 'readwrite');

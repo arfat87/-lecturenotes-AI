@@ -57,7 +57,7 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
         </div>
 
         <h2 className="text-xl font-extrabold text-slate-900">
-          {isFailed ? 'Note Generation Failed' : 'Processing Lecture Recording'}
+          {isFailed ? 'Note Generation Failed' : 'Processing Lecture Content'}
         </h2>
         <p className="mt-1.5 text-xs text-slate-500 font-medium">
           {job.progressMessage || 'Processing with Gemini 2.0 Flash...'}
@@ -74,15 +74,15 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
         {!isFailed && (
           <div className="mt-6 bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left space-y-3">
             <StepRow
-              title="1. Validating Audio File"
-              description="Ensuring non-empty microphone data"
+              title="1. Validating Source"
+              description="Verifying audio or link safety & accessibility"
               icon={CloudUpload}
               isComplete={currentStep > 1}
               isCurrent={currentStep === 1}
             />
             <StepRow
-              title="2. Speech-to-Text Transcription"
-              description="Faithful verbatim transcription"
+              title="2. Transcript Extraction"
+              description="Verbatim speech recognition or article extraction"
               icon={AudioWaveform}
               isComplete={currentStep > 2}
               isCurrent={currentStep === 2}

@@ -24,11 +24,19 @@ data class StructuredNotes(
     val sections: List<NoteSection> = emptyList()
 )
 
+enum class SourceType {
+    AUDIO_RECORDING,
+    URL_VIDEO,
+    URL_AUDIO,
+    URL_ARTICLE
+}
+
 enum class RecordingStatus {
     IDLE,
     RECORDING,
     PAUSED,
     STOPPED,
+    FETCHING,
     VALIDATING,
     TRANSCRIBING,
     SYNTHESIZING,
@@ -46,6 +54,7 @@ enum class ProcessingStage {
 
 enum class TranscriptStatus {
     PENDING,
+    FETCHING,
     VALIDATING,
     TRANSCRIBING,
     COMPLETED,
@@ -57,15 +66,17 @@ data class Recording(
     val userId: String,
     val subject: String,
     val title: String,
-    val audioPath: String,
+    val audioPath: String = "",
     val durationSeconds: Long,
-    val fileSizeBytes: Long,
+    val fileSizeBytes: Long = 0,
     val createdAt: Long,
     val status: RecordingStatus = RecordingStatus.STOPPED,
     val errorMessage: String? = null,
     val transcriptId: String? = null,
     val noteId: String? = null,
-    val isDemo: Boolean = false
+    val isDemo: Boolean = false,
+    val sourceType: SourceType = SourceType.AUDIO_RECORDING,
+    val sourceUrl: String? = null
 )
 
 data class Transcript(
@@ -79,7 +90,10 @@ data class Transcript(
     val errorMessage: String? = null,
     val isEdited: Boolean = false,
     val originalTextRef: String? = null,
-    val isDemo: Boolean = false
+    val isDemo: Boolean = false,
+    val sourceId: String? = null,
+    val sourceType: SourceType? = null,
+    val sourceUrl: String? = null
 )
 
 data class Note(
@@ -100,7 +114,10 @@ data class Note(
     val version: Int = 1,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val isDemo: Boolean = false
+    val isDemo: Boolean = false,
+    val sourceId: String? = null,
+    val sourceType: SourceType? = null,
+    val sourceUrl: String? = null
 )
 
 data class ProcessingJob(
